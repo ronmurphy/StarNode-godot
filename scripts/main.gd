@@ -39,6 +39,8 @@ var _crew:           Array     = []   # Array of crew Dictionaries
 var _crew_counter:   int       = 0    # for unique crew IDs
 var _jobs_completed: int       = 0    # 0 = fresh ship (starter crew auto-assigned)
 var _ship_log:       Array     = []   # Array of log entry Dicts: {date, from, to, days, earned, wages, lines}
+var _ship_3d_layout: Dictionary = {}  # per-room 3D offsets from layout editor
+var _layout_editor:  Control   = null # active ShipLayoutEditor (if open)
 
 const SAVE_VERSION: int = 1
 
@@ -168,6 +170,10 @@ func _build_header(parent: Control) -> void:
 	var btn_shipyard := _make_btn("🔧 Shipyard", 90, func(): _show_shipyard(false))
 	btn_shipyard.add_theme_color_override("font_color", Color(0.7, 0.9, 1.0, 1.0))
 	hbox.add_child(btn_shipyard)
+
+	var btn_3d_layout := _make_btn("🚀 3D Layout", 90, _open_3d_layout)
+	btn_3d_layout.add_theme_color_override("font_color", Color(0.85, 0.75, 1.0, 1.0))
+	hbox.add_child(btn_3d_layout)
 
 	var btn_job := _make_btn("📋 Find Job", 100, _on_find_job)
 	btn_job.add_theme_color_override("font_color", Color(0.5, 1.0, 0.6, 1.0))
@@ -1087,6 +1093,29 @@ func _on_repair_all() -> void:
 	_toast("All rooms repaired for %d cr." % cost)
 
 
+# ── 3D Layout Editor ──────────────────────────────────────────────────────────
+func _open_3d_layout() -> void:
+	if _layout_editor != null:
+		return  # already open
+	if _all_nodes().is_empty():
+		_toast("Add some rooms first!")
+		return
+	var editor := ShipLayoutEditor.new()
+	editor.setup({
+		"ship_nodes":      _all_nodes(),
+		"room_textures":   _room_textures,
+		"existing_layout": _ship_3d_layout,
+	})
+	_layout_editor = editor
+	editor.layout_saved.connect(func(layout: Dictionary) -> void:
+		_ship_3d_layout = layout
+		_layout_editor = null
+		_toast("3D layout saved!"))
+	editor.layout_cancelled.connect(func() -> void:
+		_layout_editor = null)
+	add_child(editor)
+
+
 # ── New / Save / Load ─────────────────────────────────────────────────────────
 func _on_new_ship() -> void:
 	for n in _all_nodes():
@@ -1101,6 +1130,7 @@ func _on_new_ship() -> void:
 	_crew_counter   = 0
 	_jobs_completed = 0
 	_ship_log.clear()
+	_ship_3d_layout.clear()
 	txt_ship_name.text = ship_name
 	_update_header()
 	# Open the shipyard with Percy's intro for the new captain
@@ -1170,6 +1200,7 @@ func _save_to_file(path: String) -> void:
 		"crew_counter":   _crew_counter,
 		"jobs_completed": _jobs_completed,
 		"ship_log":       _ship_log,
+		"ship_3d_layout": _ship_3d_layout,
 		"nodes":          nodes_data,
 		"connections":    conn_data,
 	}
@@ -1211,6 +1242,7 @@ func _load_from_file(path: String) -> void:
 	_crew_counter   = data.get("crew_counter",   0)
 	_jobs_completed = data.get("jobs_completed", 0)
 	_ship_log       = data.get("ship_log",       [])
+	_ship_3d_layout = data.get("ship_3d_layout", {})
 
 	# Sanitize crew status — clear any in-progress states from a mid-session save
 	for cm in _crew:
@@ -1432,6 +1464,7 @@ func _accept_job(job: Dictionary) -> void:
 		"room_textures":   _room_textures,
 		"crew":            _crew,
 		"wages":           wages,
+		"ship_3d_layout":  _ship_3d_layout,
 	})
 	add_child(star_map)
 	star_map.job_finished.connect(_on_job_finished)

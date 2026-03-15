@@ -1,65 +1,65 @@
 {
 	"connections": [
 		{
-			"from": "node_3",
+			"from": "@GraphNode@1550",
 			"from_port": 0,
-			"to": "node_1",
+			"to": "@GraphNode@1541",
 			"to_port": 0
 		},
 		{
-			"from": "node_1",
+			"from": "@GraphNode@1541",
 			"from_port": 0,
-			"to": "node_2",
+			"to": "@GraphNode@1559",
 			"to_port": 0
 		}
 	],
 	"counter": 3,
-	"credits": 6415,
+	"credits": 9323,
 	"crew": [
 		{
-			"assigned_to": "",
+			"assigned_to": "node_1",
 			"efficiency": 0.986999234963755,
 			"id": "crew_1",
 			"name": "Vex Thorne",
 			"portrait": "res://assets/pictures/profiles/alien_fungal.png",
 			"role": "Technician",
-			"shore_leave_days": 0,
+			"shore_leave_days": 0.0,
 			"status": "active",
-			"trips": 3
+			"trips": 4
 		},
 		{
 			"assigned_to": "node_2",
-			"efficiency": 0.823213286878501,
+			"efficiency": 0.85,
 			"id": "crew_5",
 			"name": "Vash Jorik",
 			"portrait": "res://assets/pictures/profiles/alien_gaseous.png",
 			"role": "Engineer",
-			"shore_leave_days": 0,
+			"shore_leave_days": 0.0,
 			"status": "active",
-			"trips": 2
+			"trips": 3
 		},
 		{
 			"assigned_to": "node_3",
-			"efficiency": 0.726114196693954,
+			"efficiency": 0.76,
 			"id": "crew_6",
 			"name": "Kova Nexis",
 			"portrait": "res://assets/pictures/profiles/space_dog_terrier.png",
 			"role": "Officer",
-			"shore_leave_days": 0,
+			"shore_leave_days": 0.0,
 			"status": "active",
-			"trips": 2
+			"trips": 3
 		}
 	],
 	"crew_counter": 6,
-	"current_system": "frontier",
-	"jobs_completed": 4,
+	"current_system": "proxima",
+	"jobs_completed": 5,
 	"nodes": [
 		{
 			"def_id": "bsg_tylium",
 			"durability": 100,
 			"hull_px": 0.0,
 			"hull_py": 11.4285697937012,
-			"name": "node_1",
+			"name": "@GraphNode@1541",
 			"pos_x": 720.0,
 			"pos_y": 280.0,
 			"texture": "res://assets/pictures/textures/tex_varak_hull.png",
@@ -70,7 +70,7 @@
 			"durability": 80,
 			"hull_px": 0.0,
 			"hull_py": -20.4081592559814,
-			"name": "node_3",
+			"name": "@GraphNode@1550",
 			"pos_x": 400.0,
 			"pos_y": 160.0,
 			"texture": "res://assets/pictures/textures/tex_luminar_hull.png",
@@ -81,18 +81,34 @@
 			"durability": 90,
 			"hull_px": -0.816326498985291,
 			"hull_py": 33.4693756103516,
-			"name": "node_2",
+			"name": "@GraphNode@1559",
 			"pos_x": 920.0,
 			"pos_y": 140.0,
 			"texture": "res://assets/pictures/textures/tex_vothaal_hull.png",
 			"uid": "node_2"
 		}
 	],
+	"ship_3d_layout": {
+		"node_1": {
+			"ox": 0.0,
+			"oy": 0.0,
+			"oz": 0.0,
+			"rot_y": 0.0,
+			"scale": 0.75
+		},
+		"node_2": {
+			"ox": 0.0,
+			"oy": 0.0,
+			"oz": -0.35,
+			"rot_y": 0.0,
+			"scale": 1.0
+		}
+	},
 	"ship_log": [
 		{
-			"crew": 3,
-			"days": 14,
-			"earned": 1867,
+			"crew": 3.0,
+			"days": 14.0,
+			"earned": 1867.0,
 			"from": "station_k",
 			"lines": [
 				"[color=#55cc77]⬡ Hull adjacency: 3 room pairs detected[/color]",
@@ -119,13 +135,13 @@
 			"promotions": [],
 			"to": "sirius",
 			"to_name": "Sirius",
-			"voyage": 2,
-			"wages": 336
+			"voyage": 2.0,
+			"wages": 336.0
 		},
 		{
-			"crew": 3,
-			"days": 24,
-			"earned": 3209,
+			"crew": 3.0,
+			"days": 24.0,
+			"earned": 3209.0,
 			"from": "sirius",
 			"lines": [
 				"[color=#55cc77]⬡ Hull adjacency: 3 room pairs detected[/color]",
@@ -160,13 +176,13 @@
 			"promotions": [],
 			"to": "hadley",
 			"to_name": "Hadley's Hope",
-			"voyage": 3,
-			"wages": 576
+			"voyage": 3.0,
+			"wages": 576.0
 		},
 		{
-			"crew": 3,
-			"days": 11,
-			"earned": 1326,
+			"crew": 3.0,
+			"days": 11.0,
+			"earned": 1326.0,
 			"from": "hadley",
 			"lines": [
 				"[color=#55cc77]⬡ Hull adjacency: 3 room pairs detected[/color]",
@@ -191,8 +207,54 @@
 			],
 			"to": "frontier",
 			"to_name": "Frontier Station",
-			"voyage": 4,
-			"wages": 264
+			"voyage": 4.0,
+			"wages": 264.0
+		},
+		{
+			"crew": 3,
+			"days": 31,
+			"earned": 3850,
+			"from": "frontier",
+			"lines": [
+				"[color=#55cc77]⬡ Hull adjacency: 3 room pairs detected[/color]",
+				"[color=#4488ff]═══  Nship  —  Diplomatic Courier  —  31 days to Proxima Centauri  ═══[/color]",
+				"[color=#6688cc]  Departing Frontier Station. Engines spooling up…[/color]",
+				"[color=#6677aa]  Via: Hadley's Hope, Barnard's Star[/color]",
+				"[color=#88aaff]  Course locked. Initiating FTL burn.[/color]",
+				"[color=#55cc77]⬡ Adjacency: -1 wear on Impulse Engine[/color]",
+				"[color=#556677]  Routine transit.[/color]",
+				"[color=#44aaff]📋 Officer negotiated +22 cr bonus[/color]",
+				"[color=#55cc77]⬡ Hull synergy: Command adjacency +18 cr[/color]",
+				"[color=#44ee88]✔ Diplomatic contract — +198 cr[/color]",
+				"[color=#44aaff]📋 Officer negotiated +30 cr bonus[/color]",
+				"[color=#55cc77]⬡ Hull synergy: Command adjacency +24 cr[/color]",
+				"[color=#44ee88]✔ Profitable cargo run — +267 cr[/color]",
+				"[color=#aaccff]→ Passing through Hadley's Hope[/color]",
+				"[color=#44aaff]📋 Officer negotiated +34 cr bonus[/color]",
+				"[color=#55cc77]⬡ Hull synergy: Command adjacency +27 cr[/color]",
+				"[color=#44ee88]✔ Diplomatic contract — +297 cr[/color]",
+				"[color=#ff5533]⚠ Combat! -16 dur to [b]Impulse Engine[/b].[/color]",
+				"[color=#ff5533]⚠ Combat! -8 dur to [b]Impulse Engine[/b].[/color]",
+				"[color=#aaccff]→ Passing through Barnard's Star[/color]",
+				"[color=#ff5533]⚠ Combat! -12 dur to [b]Tylium Reactor[/b].[/color]",
+				"[color=#ff5533]⚠ Combat! -20 dur to [b]Impulse Engine[/b].[/color]",
+				"[color=#44aaff]📋 Officer negotiated +30 cr bonus[/color]",
+				"[color=#55cc77]⬡ Hull synergy: Command adjacency +24 cr[/color]",
+				"[color=#44ee88]✔ Profitable cargo run — +264 cr[/color]",
+				"[color=#556677]  Routine transit.[/color]",
+				"",
+				"[color=#ffd050]═══  Arrived at Proxima Centauri  ═══[/color]",
+				"[color=#ffd050]Net earned: 3850 credits[/color]",
+				"[color=#ff8844]Crew wages: -744 cr[/color]"
+			],
+			"promotions": [
+				"Vash Jorik is now Seasoned! (efficiency +3%)",
+				"Kova Nexis is now Seasoned! (efficiency +3%)"
+			],
+			"to": "proxima",
+			"to_name": "Proxima Centauri",
+			"voyage": 5,
+			"wages": 744
 		}
 	],
 	"ship_name": "Nship",

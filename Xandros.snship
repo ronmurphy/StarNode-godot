@@ -26,7 +26,7 @@
 		}
 	],
 	"counter": 5,
-	"credits": 26850,
+	"credits": 30428,
 	"crew": [
 		{
 			"assigned_to": "node_2",
@@ -37,7 +37,7 @@
 			"role": "Engineer",
 			"shore_leave_days": 0.0,
 			"status": "active",
-			"trips": 4
+			"trips": 5
 		},
 		{
 			"assigned_to": "node_1",
@@ -48,7 +48,7 @@
 			"role": "Technician",
 			"shore_leave_days": 0.0,
 			"status": "active",
-			"trips": 4
+			"trips": 5
 		},
 		{
 			"assigned_to": "node_5",
@@ -59,7 +59,7 @@
 			"role": "Officer",
 			"shore_leave_days": 0.0,
 			"status": "active",
-			"trips": 4
+			"trips": 5
 		},
 		{
 			"assigned_to": "node_4",
@@ -70,7 +70,7 @@
 			"role": "Security",
 			"shore_leave_days": 0.0,
 			"status": "active",
-			"trips": 4
+			"trips": 5
 		},
 		{
 			"assigned_to": "node_3",
@@ -81,16 +81,16 @@
 			"role": "Security",
 			"shore_leave_days": 0.0,
 			"status": "active",
-			"trips": 4
+			"trips": 5
 		}
 	],
 	"crew_counter": 10,
-	"current_system": "alpha_cen",
-	"jobs_completed": 15,
+	"current_system": "hadley",
+	"jobs_completed": 16,
 	"nodes": [
 		{
 			"def_id": "b5_cic",
-			"durability": 65,
+			"durability": 42,
 			"hull_px": 620.0,
 			"hull_py": 80.0,
 			"name": "node_3",
@@ -112,7 +112,7 @@
 		},
 		{
 			"def_id": "trek_warpcore",
-			"durability": 90,
+			"durability": 67,
 			"hull_px": 620.0,
 			"hull_py": 180.0,
 			"name": "node_1",
@@ -144,6 +144,43 @@
 			"uid": "node_5"
 		}
 	],
+	"ship_3d_layout": {
+		"node_1": {
+			"ox": 0.0,
+			"oy": -0.15,
+			"oz": -1.25,
+			"rot_y": 0.0,
+			"scale": 0.75
+		},
+		"node_2": {
+			"ox": 0.0,
+			"oy": -0.15,
+			"oz": -3.45,
+			"rot_y": 0.0,
+			"scale": 1.0
+		},
+		"node_3": {
+			"ox": 0.0,
+			"oy": 0.0,
+			"oz": -0.65,
+			"rot_y": 0.0,
+			"scale": 0.85
+		},
+		"node_4": {
+			"ox": 0.0,
+			"oy": 0.4,
+			"oz": -1.7,
+			"rot_y": 0.0,
+			"scale": 1.0
+		},
+		"node_5": {
+			"ox": 0.0,
+			"oy": 0.0,
+			"oz": 0.0,
+			"rot_y": 0.0,
+			"scale": 0.85
+		}
+	},
 	"ship_log": [
 		{
 			"crew": 5.0,
@@ -252,9 +289,9 @@
 			"wages": 760.0
 		},
 		{
-			"crew": 5,
-			"days": 10,
-			"earned": 681,
+			"crew": 5.0,
+			"days": 10.0,
+			"earned": 681.0,
 			"from": "station_k",
 			"lines": [
 				"[color=#55cc77]⬡ Hull adjacency: 4 room pairs detected[/color]",
@@ -278,8 +315,51 @@
 			"promotions": [],
 			"to": "alpha_cen",
 			"to_name": "Alpha Centauri",
-			"voyage": 15,
-			"wages": 400
+			"voyage": 15.0,
+			"wages": 400.0
+		},
+		{
+			"crew": 5,
+			"days": 23,
+			"earned": 4498,
+			"from": "alpha_cen",
+			"lines": [
+				"[color=#55cc77]⬡ Hull adjacency: 4 room pairs detected[/color]",
+				"[color=#4488ff]═══  Xandros  —  Escort  —  23 days to Hadley's Hope  ═══[/color]",
+				"[color=#6688cc]  Departing Alpha Centauri. Engines spooling up…[/color]",
+				"[color=#6677aa]  Via: Kepler Station, Barnard's Star[/color]",
+				"[color=#88aaff]  Course locked. Initiating FTL burn.[/color]",
+				"[color=#44aaff]🔧 Cade Rynn reduces wear on Warp Core[/color]",
+				"[color=#55cc77]⬡ Adjacency: -1 wear on Ion Engine[/color]",
+				"[color=#44aaff]📋 Officer negotiated +29 cr bonus[/color]",
+				"[color=#55cc77]⬡ Hull synergy: Command adjacency +30 cr[/color]",
+				"[color=#44ee88]✔ Profitable cargo run — +233 cr[/color]",
+				"[color=#556677]  Routine transit.[/color]",
+				"[color=#aaccff]→ Passing through Kepler Station[/color]",
+				"[color=#44aaff]📋 Officer negotiated +63 cr bonus[/color]",
+				"[color=#55cc77]⬡ Hull synergy: Command adjacency +64 cr[/color]",
+				"[color=#44ee88]✔ Diplomatic contract — +494 cr[/color]",
+				"[color=#556677]  Routine transit.[/color]",
+				"[color=#44aaff]📋 Officer negotiated +67 cr bonus[/color]",
+				"[color=#55cc77]⬡ Hull synergy: Command adjacency +69 cr[/color]",
+				"[color=#44ee88]✔ Diplomatic contract — +531 cr[/color]",
+				"[color=#aaccff]→ Passing through Barnard's Star[/color]",
+				"[color=#44aaff]📋 Officer negotiated +22 cr bonus[/color]",
+				"[color=#55cc77]⬡ Hull synergy: Command adjacency +23 cr[/color]",
+				"[color=#44ee88]✔ Diplomatic contract — +177 cr[/color]",
+				"[color=#44aaff]📋 Officer negotiated +35 cr bonus[/color]",
+				"[color=#55cc77]⬡ Hull synergy: Command adjacency +36 cr[/color]",
+				"[color=#44ee88]✔ Profitable cargo run — +280 cr[/color]",
+				"",
+				"[color=#ffd050]═══  Arrived at Hadley's Hope  ═══[/color]",
+				"[color=#ffd050]Net earned: 4498 credits[/color]",
+				"[color=#ff8844]Crew wages: -920 cr[/color]"
+			],
+			"promotions": [],
+			"to": "hadley",
+			"to_name": "Hadley's Hope",
+			"voyage": 16,
+			"wages": 920
 		}
 	],
 	"ship_name": "Xandros",
