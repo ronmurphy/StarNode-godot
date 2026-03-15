@@ -38,6 +38,7 @@ var _last_save_path: String    = ""   # most recent save/load path for auto-save
 var _crew:           Array     = []   # Array of crew Dictionaries
 var _crew_counter:   int       = 0    # for unique crew IDs
 var _jobs_completed: int       = 0    # 0 = fresh ship (starter crew auto-assigned)
+var _ship_log:       Array     = []   # Array of log entry Dicts: {date, from, to, days, earned, wages, lines}
 
 const SAVE_VERSION: int = 1
 
@@ -159,6 +160,10 @@ func _build_header(parent: Control) -> void:
 	hbox.add_child(lbl_crew)
 
 	_add_vsep(hbox)
+
+	var btn_log := _make_btn("📖 Log", 65, _show_captains_log)
+	btn_log.add_theme_color_override("font_color", Color(0.75, 0.70, 0.95, 1.0))
+	hbox.add_child(btn_log)
 
 	var btn_shipyard := _make_btn("🔧 Shipyard", 90, func(): _show_shipyard(false))
 	btn_shipyard.add_theme_color_override("font_color", Color(0.7, 0.9, 1.0, 1.0))
@@ -507,11 +512,13 @@ func _sy_refresh_room_list(inventory: Array = []) -> void:
 		_filtered_rooms = RoomData.filter(uni, room_type, search)
 	else:
 		# Port merchant: filter from subset
+		var uni_all := (uni == "All")
+		var type_all := (room_type == "All" or room_type == "All Types")
 		_filtered_rooms = []
 		for room in inventory:
-			if uni != "All" and room.universe != uni:
+			if not uni_all and room.universe != uni:
 				continue
-			if room_type != "All" and room.type != room_type:
+			if not type_all and room.type != room_type:
 				continue
 			if not search.is_empty() and search.to_lower() not in room.name.to_lower():
 				continue
@@ -856,6 +863,170 @@ func _show_power_breakdown() -> void:
 	popup.offset_bottom = 150
 
 
+# ── Captain's Log ─────────────────────────────────────────────────────────────
+func _show_captains_log() -> void:
+	## Full-screen overlay showing the ship's voyage history.
+	var overlay := ColorRect.new()
+	overlay.color = Color(0.0, 0.0, 0.0, 0.75)
+	overlay.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	overlay.z_index = 50
+	add_child(overlay)
+
+	var panel := PanelContainer.new()
+	var style := StyleBoxFlat.new()
+	style.bg_color = Color(0.04, 0.06, 0.10, 0.98)
+	style.border_color = Color(0.45, 0.40, 0.70, 1.0)
+	style.set_border_width_all(2)
+	style.set_corner_radius_all(8)
+	style.set_content_margin_all(16)
+	panel.add_theme_stylebox_override("panel", style)
+	panel.z_index = 51
+	overlay.add_child(panel)
+	panel.set_anchors_and_offsets_preset(Control.PRESET_CENTER)
+	panel.offset_left   = -340
+	panel.offset_right  =  340
+	panel.offset_top    = -260
+	panel.offset_bottom =  260
+
+	var vb := VBoxContainer.new()
+	vb.add_theme_constant_override("separation", 6)
+	panel.add_child(vb)
+
+	var title := Label.new()
+	title.text = "📖  CAPTAIN'S LOG  —  %s" % ship_name
+	title.add_theme_font_size_override("font_size", 16)
+	title.add_theme_color_override("font_color", Color(0.75, 0.70, 0.95, 1.0))
+	vb.add_child(title)
+
+	var sep := HSeparator.new()
+	vb.add_child(sep)
+
+	# Scrollable log area
+	var scroll := ScrollContainer.new()
+	scroll.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
+	vb.add_child(scroll)
+
+	var log_vb := VBoxContainer.new()
+	log_vb.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	log_vb.add_theme_constant_override("separation", 8)
+	scroll.add_child(log_vb)
+
+	if _ship_log.is_empty():
+		var empty := Label.new()
+		empty.text = "No voyages recorded yet. Complete a job to begin your log."
+		empty.add_theme_font_size_override("font_size", 11)
+		empty.add_theme_color_override("font_color", CLR_DIM)
+		log_vb.add_child(empty)
+	else:
+		# Show voyages in reverse order (most recent first)
+		for i in range(_ship_log.size() - 1, -1, -1):
+			var entry: Dictionary = _ship_log[i]
+			_build_log_entry(log_vb, entry)
+
+	# Close button
+	var btn_close := Button.new()
+	btn_close.text = "Close"
+	btn_close.custom_minimum_size.x = 100
+	btn_close.add_theme_font_size_override("font_size", 12)
+	btn_close.pressed.connect(func() -> void: overlay.queue_free())
+	vb.add_child(btn_close)
+
+
+func _build_log_entry(parent: Control, entry: Dictionary) -> void:
+	## Build one voyage entry in the Captain's Log.
+	var card := PanelContainer.new()
+	var cs := StyleBoxFlat.new()
+	cs.bg_color = Color(0.06, 0.08, 0.14, 1.0)
+	cs.border_color = Color(0.3, 0.28, 0.5, 0.5)
+	cs.set_border_width_all(1)
+	cs.set_corner_radius_all(4)
+	cs.set_content_margin_all(10)
+	card.add_theme_stylebox_override("panel", cs)
+	parent.add_child(card)
+
+	var vb := VBoxContainer.new()
+	vb.add_theme_constant_override("separation", 3)
+	card.add_child(vb)
+
+	var voyage_num: int  = entry.get("voyage", 0)
+	var from_id: String  = entry.get("from", "sol")
+	var to_name: String  = entry.get("to_name", "Unknown")
+	var days: int        = entry.get("days", 0)
+	var earned: int      = entry.get("earned", 0)
+	var wages: int       = entry.get("wages", 0)
+	var crew_count: int  = entry.get("crew", 0)
+
+	# Look up origin system name
+	var from_name := from_id
+	for sys in StarMapData.SYSTEMS:
+		if sys.id == from_id:
+			from_name = sys.name
+			break
+
+	# Header line
+	var hdr := Label.new()
+	hdr.text = "Voyage #%d  —  %s → %s" % [voyage_num, from_name, to_name]
+	hdr.add_theme_font_size_override("font_size", 12)
+	hdr.add_theme_color_override("font_color", Color(0.75, 0.70, 0.95, 1.0))
+	vb.add_child(hdr)
+
+	# Stats line
+	var net: int = earned - wages
+	var stats := Label.new()
+	stats.text = "%d days  |  Earned: %d cr  |  Wages: -%d cr  |  Net: %s%d cr  |  Crew: %d" % [
+		days, earned, wages, "+" if net >= 0 else "", net, crew_count]
+	stats.add_theme_font_size_override("font_size", 10)
+	stats.add_theme_color_override("font_color", CLR_DIM)
+	vb.add_child(stats)
+
+	# Expandable event log — show a summary, click to expand
+	var lines: Array = entry.get("lines", [])
+	if lines.is_empty():
+		return
+
+	# Count notable events (skip empty lines and routine "Day X" lines)
+	var events: Array = []
+	for line in lines:
+		var s: String = line
+		if s.is_empty(): continue
+		# Strip BBCode for plain-text check
+		var plain := s.replace("[color=", "").replace("[/color]", "")
+		if plain.find("═══") >= 0: continue  # header/footer dividers
+		if plain.find("Arrived at") >= 0: continue
+		if plain.find("Net earned") >= 0: continue
+		if plain.find("Crew wages") >= 0: continue
+		events.append(s)
+
+	if events.is_empty():
+		return
+
+	var btn_expand := Button.new()
+	btn_expand.text = "▶ %d events" % events.size()
+	btn_expand.add_theme_font_size_override("font_size", 9)
+	btn_expand.flat = true
+	btn_expand.add_theme_color_override("font_color", CLR_ACCENT)
+	vb.add_child(btn_expand)
+
+	var detail_box := RichTextLabel.new()
+	detail_box.bbcode_enabled = true
+	detail_box.fit_content = true
+	detail_box.scroll_active = false
+	detail_box.custom_minimum_size.y = 0
+	detail_box.add_theme_font_size_override("normal_font_size", 9)
+	detail_box.add_theme_color_override("default_color", Color(0.6, 0.65, 0.75, 1.0))
+	detail_box.visible = false
+	vb.add_child(detail_box)
+
+	var event_text := "\n".join(events)
+	detail_box.text = event_text
+
+	btn_expand.pressed.connect(func() -> void:
+		detail_box.visible = not detail_box.visible
+		btn_expand.text = ("▼ %d events" if detail_box.visible else "▶ %d events") % events.size()
+	)
+
+
 # ── Mode buttons ──────────────────────────────────────────────────────────────
 func _on_toggle_delete_mode() -> void:
 	_delete_mode = not _delete_mode
@@ -929,6 +1100,7 @@ func _on_new_ship() -> void:
 	_crew.clear()
 	_crew_counter   = 0
 	_jobs_completed = 0
+	_ship_log.clear()
 	txt_ship_name.text = ship_name
 	_update_header()
 	# Open the shipyard with Percy's intro for the new captain
@@ -997,6 +1169,7 @@ func _save_to_file(path: String) -> void:
 		"crew":           _crew,
 		"crew_counter":   _crew_counter,
 		"jobs_completed": _jobs_completed,
+		"ship_log":       _ship_log,
 		"nodes":          nodes_data,
 		"connections":    conn_data,
 	}
@@ -1037,6 +1210,7 @@ func _load_from_file(path: String) -> void:
 	_crew           = data.get("crew",           [])
 	_crew_counter   = data.get("crew_counter",   0)
 	_jobs_completed = data.get("jobs_completed", 0)
+	_ship_log       = data.get("ship_log",       [])
 
 	# Sanitize crew status — clear any in-progress states from a mid-session save
 	for cm in _crew:
@@ -1045,6 +1219,9 @@ func _load_from_file(path: String) -> void:
 			cm.status = "active"
 			cm.assigned_to = ""
 			cm.shore_leave_days = 0
+		# Migration: ensure trips field exists for old saves
+		if not cm.has("trips"):
+			cm.trips = 0
 	txt_ship_name.text = ship_name
 
 	# Restore nodes
@@ -1305,8 +1482,28 @@ func _on_job_finished(result: Dictionary) -> void:
 	var earned: int = result.get("earned", 0)
 	var wages: int  = result.get("wages", 0)
 	credits += earned - wages
+	var prev_system := _current_system
 	_current_system = result.get("destination_id", _current_system)
 	_update_header()
+
+	# ── Crew veteran progression ──
+	var promotions: Array = CrewData.apply_trip_completion(_crew)
+	for promo in promotions:
+		_toast(promo)
+
+	# ── Record voyage in Captain's Log ──
+	_ship_log.append({
+		"voyage":  _jobs_completed,
+		"from":    prev_system,
+		"to":      result.get("destination_id", "unknown"),
+		"to_name": result.get("destination", "Unknown"),
+		"days":    result.get("days", 0),
+		"earned":  earned,
+		"wages":   wages,
+		"crew":    _crew.size(),
+		"lines":   result.get("log_lines", []),
+		"promotions": promotions,
+	})
 
 	# Percy's crew hint after the very first job — defer port until dismissed
 	if _jobs_completed == 1:

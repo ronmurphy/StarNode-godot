@@ -39,6 +39,7 @@ var _events_done:     Array      = []  # indices already fired
 var _n_cinematic_segs: int       = 0   # first N waypoint-segments are pre-travel cinematic
 var _sys_nodes:        Dictionary = {}  # system_id → Node3D (for proximity fade)
 var _adjacencies:      Dictionary = {}  # node_uid → [{uid, type}] — hull adjacency map
+var _room_containers:  Array      = []  # Node3D per ship room (same order as _ship_nodes_ref)
 
 # ── Camera phases: 0=departure, 1=stationary flyby at midpoint, 2=chase ──
 var _cam_phase:     int     = 0
@@ -99,6 +100,7 @@ func _build_viewport() -> void:
 	var vpc := SubViewportContainer.new()
 	vpc.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	vpc.stretch = true
+	vpc.mouse_filter = Control.MOUSE_FILTER_PASS   # let wheel events reach _unhandled_input
 	add_child(vpc)
 
 	_viewport = SubViewport.new()
@@ -346,6 +348,7 @@ func _build_from_layout(vis: Node3D, ship_nodes: Array, textures: Dictionary) ->
 		var room_container := Node3D.new()
 		room_container.position = room_pos
 		vis.add_child(room_container)
+		_room_containers.append(room_container)
 
 		_build_room_shape(room_container, rtype, universe, cost, mat, box_sz)
 		_add_room_lights(room_container, rtype, box_sz)
@@ -411,13 +414,28 @@ func _3d_trek(container: Node3D, rtype: String,
 				_box_mesh(Vector3(sz.x * 0.76, sz.y * 0.12, sz.z * 0.18)),
 				mat, Vector3.ZERO)
 		"Power":
-			# Secondary hull box + glowing deflector dish at rear
-			_add_mi(container, _box_mesh(sz), mat, Vector3.ZERO)
+			# Secondary hull trapezoid (wider top, narrower bottom) + deflector dish
+			var hull := CylinderMesh.new()
+			hull.top_radius    = sz.x * 0.52
+			hull.bottom_radius = sz.x * 0.30
+			hull.height        = sz.y * 1.0
+			hull.radial_segments = 4
+			_add_mi(container, hull, mat, Vector3.ZERO)
 			var dish := SphereMesh.new()
 			dish.radius = sz.x * 0.24;  dish.height = dish.radius * 2.0
 			_add_mi(container, dish,
 				_glow_mat(Color(0.25, 0.50, 0.92), 1.4),
 				Vector3(0.0, -sz.y * 0.10, sz.z * 0.62))
+		"Tactical":
+			# Phaser arc ring + twin photon torpedo launcher boxes
+			var ring := TorusMesh.new()
+			ring.inner_radius = sz.x * 0.38;  ring.outer_radius = sz.x * 0.50
+			ring.rings = 24;  ring.ring_segments = 16
+			_add_mi(container, ring, mat, Vector3(0.0, sz.y * 0.08, 0.0))
+			for sx: float in [-sz.x * 0.30, sz.x * 0.30]:
+				_add_mi(container,
+					_box_mesh(Vector3(sz.x * 0.26, sz.y * 0.50, sz.z * 0.22)),
+					mat, Vector3(sx, -sz.y * 0.12, 0.0))
 		_:
 			_3d_generic(container, rtype, 0, mat, sz)
 
@@ -428,11 +446,14 @@ func _3d_wars(container: Node3D, rtype: String,
 		mat: StandardMaterial3D, sz: Vector3) -> void:
 	match rtype:
 		"Command":
-			# Wide flat hull + tall bridge tower
-			_add_mi(container, _box_mesh(Vector3(sz.x * 1.10, sz.y * 0.55, sz.z)),
-				mat, Vector3(0.0, -sz.y * 0.18, 0.0))
+			# Star Destroyer wedge hull (PrismMesh = triangular cross-section) + bridge tower
+			var wedge := PrismMesh.new()
+			wedge.size = Vector3(sz.x * 1.10, sz.z * 1.20, sz.y * 0.55)
+			wedge.left_to_right = 0.5   # symmetric triangle
+			var wmi := _add_mi(container, wedge, mat, Vector3(0.0, -sz.y * 0.18, 0.0))
+			wmi.rotation_degrees = Vector3(-90.0, 0.0, 0.0)
 			_add_mi(container, _box_mesh(Vector3(sz.x * 0.24, sz.y * 0.95, sz.z * 0.32)),
-				mat, Vector3(0.0, sz.y * 0.40, 0.0))
+				mat, Vector3(0.0, sz.y * 0.40, sz.z * 0.20))
 		"Engines":
 			# Engine block + 4 circular ion exhaust cylinders (2×2 grid)
 			_add_mi(container, _box_mesh(sz), mat, Vector3.ZERO)
@@ -517,6 +538,22 @@ func _3d_b5(container: Node3D, rtype: String,
 					_box_mesh(Vector3(sz.x * 0.12, sz.y * 0.85, sz.z * 0.40)),
 					mat, fp)
 				fmi.rotation_degrees = Vector3(0.0, rad_to_deg(a), 0.0)
+		"Tactical":
+			# Forward weapons pod (trapezoid box wider at front) + twin gun barrels
+			var pod_rear := sz.x * 0.22
+			var pod_front := sz.x * 0.48
+			var pod := CylinderMesh.new()
+			pod.top_radius = pod_rear;  pod.bottom_radius = pod_front
+			pod.height = sz.z * 0.85;  pod.radial_segments = 4
+			var pmi := _add_mi(container, pod, mat, Vector3(0.0, -sz.y * 0.10, 0.0))
+			pmi.rotation_degrees = Vector3(90.0, 45.0, 0.0)
+			var barrel := CylinderMesh.new()
+			barrel.top_radius = sz.x * 0.06;  barrel.bottom_radius = barrel.top_radius
+			barrel.height = sz.z * 0.50;  barrel.radial_segments = 8
+			for sx: float in [-sz.x * 0.20, sz.x * 0.20]:
+				var bmi := _add_mi(container, barrel, mat,
+					Vector3(sx, sz.y * 0.10, -sz.z * 0.52))
+				bmi.rotation_degrees = Vector3(90.0, 0.0, 0.0)
 		_:
 			_3d_generic(container, rtype, 0, mat, sz)
 
@@ -551,17 +588,30 @@ func _3d_dune(container: Node3D, rtype: String,
 			for off: Vector3 in offsets:
 				_add_mi(container, sp, em, off)
 		"Power":
-			# Holtzman field generator: two BoxMesh diamonds (45°/135°) + bright core
-			var dsz := Vector3(sz.x * 0.58, sz.y * 0.72, sz.z * 0.58)
-			var dm := _glow_mat(RoomData.type_color("Power"), 0.8)
-			for ang: float in [45.0, 135.0]:
-				var dmi := _add_mi(container, _box_mesh(dsz), dm, Vector3.ZERO)
-				dmi.rotation_degrees = Vector3(0.0, ang, 0.0)
+			# Holtzman field generator: two parallel offset diamond boxes (\\) + bright core
+			var dsz := Vector3(sz.x * 0.48, sz.y * 0.72, sz.z * 0.20)
+			for ox: float in [-sz.x * 0.18, sz.x * 0.18]:
+				var dmi := _add_mi(container, _box_mesh(dsz), mat,
+					Vector3(ox, 0.0, 0.0))
+				dmi.rotation_degrees = Vector3(0.0, 45.0, 0.0)
 			var core := SphereMesh.new()
 			core.radius = sz.x * 0.16;  core.height = core.radius * 2.0
 			_add_mi(container, core,
 				_glow_mat(RoomData.type_color("Power").lightened(0.40), 2.0),
 				Vector3.ZERO)
+		"Tactical":
+			# Lasgun battery — paired angled blade boxes + glowing emitter tips
+			for sx: float in [-1.0, 1.0]:
+				var blade := _box_mesh(Vector3(sz.x * 0.22, sz.y * 0.85, sz.z * 0.16))
+				var bmi := _add_mi(container, blade, mat,
+					Vector3(sx * sz.x * 0.28, 0.0, 0.0))
+				bmi.rotation_degrees = Vector3(0.0, 0.0, sx * 12.0)
+			var tip := SphereMesh.new()
+			tip.radius = sz.x * 0.10;  tip.height = tip.radius * 2.0
+			var tm := _glow_mat(RoomData.type_color("Tactical").lightened(0.30), 1.4)
+			for sx: float in [-1.0, 1.0]:
+				_add_mi(container, tip, tm,
+					Vector3(sx * sz.x * 0.28, sz.y * 0.52, 0.0))
 		_:
 			_3d_generic(container, rtype, 0, mat, sz)
 
@@ -733,6 +783,93 @@ func _add_mi(parent: Node3D, mesh: Mesh, mat: Material,
 	mi.set_surface_override_material(0, mat)
 	parent.add_child(mi)
 	return mi
+
+
+# ── Combat explosion VFX ─────────────────────────────────────────────────────
+
+func _spawn_explosion(room_idx: int) -> void:
+	## Spawn a fiery explosion burst on the room at `room_idx`.
+	if room_idx < 0 or room_idx >= _room_containers.size():
+		return
+	var container: Node3D = _room_containers[room_idx]
+	# Room is parented to _ship_pivot child (vis) — get world position
+	var world_pos: Vector3 = container.global_position
+
+	# ── Flash sphere (quick bright expand + fade) ────────────────────────
+	var flash := MeshInstance3D.new()
+	var sphere := SphereMesh.new()
+	sphere.radius = 0.6;  sphere.height = 1.2
+	sphere.radial_segments = 12;  sphere.rings = 6
+	flash.mesh = sphere
+	var flash_mat := StandardMaterial3D.new()
+	flash_mat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+	flash_mat.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+	flash_mat.albedo_color = Color(1.0, 0.85, 0.3, 0.95)
+	flash_mat.emission_enabled = true
+	flash_mat.emission = Color(1.0, 0.6, 0.15)
+	flash_mat.emission_energy_multiplier = 4.0
+	flash.set_surface_override_material(0, flash_mat)
+	flash.global_position = world_pos
+	_world.add_child(flash)
+
+	# ── Debris sparks (small bright spheres flying outward) ──────────────
+	var sparks: Array[MeshInstance3D] = []
+	var spark_dirs: Array[Vector3] = []
+	var spark_mesh := SphereMesh.new()
+	spark_mesh.radius = 0.12;  spark_mesh.height = 0.24
+	var spark_mat := StandardMaterial3D.new()
+	spark_mat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+	spark_mat.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+	spark_mat.albedo_color = Color(1.0, 0.5, 0.1, 1.0)
+	spark_mat.emission_enabled = true
+	spark_mat.emission = Color(1.0, 0.4, 0.05)
+	spark_mat.emission_energy_multiplier = 3.0
+	for i in 8:
+		var sp := MeshInstance3D.new()
+		sp.mesh = spark_mesh
+		sp.set_surface_override_material(0, spark_mat)
+		sp.global_position = world_pos
+		_world.add_child(sp)
+		sparks.append(sp)
+		spark_dirs.append(Vector3(
+			randf_range(-1.0, 1.0),
+			randf_range(0.2, 1.0),
+			randf_range(-1.0, 1.0)
+		).normalized())
+
+	# ── Omni light flash ────────────────────────────────────────────────
+	var light := OmniLight3D.new()
+	light.light_color = Color(1.0, 0.6, 0.2)
+	light.light_energy = 6.0
+	light.omni_range = 6.0
+	light.global_position = world_pos
+	_world.add_child(light)
+
+	# ── Animate via tween ────────────────────────────────────────────────
+	var tw := create_tween()
+	tw.set_parallel(true)
+
+	# Flash sphere: expand + fade out over 0.6s
+	tw.tween_property(flash, "scale", Vector3(3.5, 3.5, 3.5), 0.6).set_ease(Tween.EASE_OUT)
+	tw.tween_property(flash_mat, "albedo_color:a", 0.0, 0.5).set_delay(0.1)
+
+	# Sparks: fly outward over 0.8s then fade
+	for i in sparks.size():
+		var target_pos := world_pos + spark_dirs[i] * randf_range(2.5, 5.0)
+		tw.tween_property(sparks[i], "global_position", target_pos, 0.8).set_ease(Tween.EASE_OUT)
+	tw.tween_property(spark_mat, "albedo_color:a", 0.0, 0.4).set_delay(0.5)
+
+	# Light: fade out
+	tw.tween_property(light, "light_energy", 0.0, 0.7)
+
+	# Cleanup after animation
+	tw.set_parallel(false)
+	tw.tween_callback(func():
+		flash.queue_free()
+		for sp in sparks:
+			sp.queue_free()
+		light.queue_free()
+	).set_delay(1.0)
 
 
 func _build_fallback_hull(vis: Node3D, textures: Dictionary) -> float:
@@ -1340,6 +1477,7 @@ func _fire_event(ev: Dictionary) -> void:
 						_log("[color=#55cc77]⬡ Hull synergy: Tactical adjacency reduced %d damage[/color]" % adj_red)
 
 				target.apply_damage(dmg)
+				_spawn_explosion(idx)
 				_earned -= randi_range(50, 180)
 				_earned  = maxi(0, _earned)
 				_log("[color=#ff5533]⚠ Combat! -%d dur to [b]%s[/b].[/color]" % [dmg, target.title])

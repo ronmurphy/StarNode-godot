@@ -54,6 +54,15 @@ const WAGE_PER_DAY: int = 8
 const HIRE_COST_BASE: int = 80        # scaled by efficiency
 const SHORE_LEAVE_COST_PER_DAY: int = 15
 
+# ── Veteran thresholds ────────────────────────────────────────────────────────
+# {min_trips: efficiency_bonus} — cumulative (each tier adds its bonus once)
+const VETERAN_TIERS: Array[Dictionary] = [
+	{"trips": 3,  "bonus": 0.03, "rank": "Seasoned"},
+	{"trips": 7,  "bonus": 0.04, "rank": "Veteran"},
+	{"trips": 12, "bonus": 0.05, "rank": "Elite"},
+	{"trips": 20, "bonus": 0.05, "rank": "Legendary"},
+]
+
 
 # ── Name generation ──────────────────────────────────────────────────────────
 
@@ -90,6 +99,7 @@ static func generate_crew(role_hint: String = "", id_num: int = -1) -> Dictionar
 		"assigned_to":      "",        # node_uid or ""
 		"status":           "active",  # "active", "shore_leave", "arrested"
 		"shore_leave_days": 0,
+		"trips":            0,         # completed voyages — drives veteran bonuses
 	}
 
 
@@ -123,3 +133,34 @@ static func room_type_for_role(role: String) -> String:
 
 static func wage_for_trip(crew_count: int, days: int) -> int:
 	return crew_count * WAGE_PER_DAY * days
+
+
+# ── Veteran system ────────────────────────────────────────────────────────────
+
+static func veteran_rank(trips: int) -> String:
+	## Return the highest veteran rank achieved, or "" for rookies.
+	var rank := ""
+	for tier in VETERAN_TIERS:
+		if trips >= tier.trips:
+			rank = tier.rank
+	return rank
+
+
+static func apply_trip_completion(crew: Array) -> Array:
+	## Call after a voyage completes.  Increments trips for all active crew,
+	## and applies any newly-earned veteran efficiency bonuses.
+	## Returns an Array of Strings describing promotions (for logging).
+	var promotions: Array = []
+	for cm in crew:
+		if cm.get("status", "active") != "active":
+			continue
+		var old_trips: int = cm.get("trips", 0)
+		cm.trips = old_trips + 1
+		# Check if we crossed a tier threshold
+		for tier in VETERAN_TIERS:
+			if old_trips < tier.trips and cm.trips >= tier.trips:
+				cm.efficiency = minf(cm.efficiency + tier.bonus, 1.0)
+				cm.efficiency = snappedf(cm.efficiency, 0.01)
+				promotions.append("%s is now %s! (efficiency +%d%%)" % [
+					cm.name, tier.rank, int(tier.bonus * 100)])
+	return promotions

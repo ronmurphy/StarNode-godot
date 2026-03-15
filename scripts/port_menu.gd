@@ -1953,6 +1953,15 @@ func _show_crew_stats(cm: Dictionary) -> void:
 				break
 		vb.add_child(_lbl("Assignment: %s" % room_name, 11, _GREEN))
 
+	# Veteran info
+	var trips: int = cm.get("trips", 0)
+	var rank: String = CrewData.veteran_rank(trips)
+	if rank.is_empty():
+		vb.add_child(_lbl("Voyages: %d  (Rookie)" % trips, 11, _DIM))
+	else:
+		var rank_col := Color(0.75, 0.70, 0.95, 1.0) if rank != "Legendary" else _GOLD
+		vb.add_child(_lbl("Voyages: %d  ★ %s" % [trips, rank], 11, rank_col))
+
 	var match_type: String = CrewData.room_type_for_role(cm.get("role", ""))
 	vb.add_child(_lbl("Best in: %s rooms" % match_type, 10, _DIM))
 
