@@ -54,9 +54,12 @@ var _log_box:     RichTextLabel
 
 # ── Constants ────────────────────────────────────────────────────────────────
 const DAY_SECS   := 10.0   # real seconds per in-game day at 1× speed
-const CAM_BACK   := 14.0
-const CAM_UP     :=  5.0
+var _cam_back:  float = 14.0
+var _cam_up:    float =  5.0
 const CAM_AHEAD  :=  9.0
+const CAM_ZOOM_MIN := 5.0
+const CAM_ZOOM_MAX := 40.0
+const CAM_ZOOM_STEP := 2.0
 
 # Texture paths (loaded gracefully — falls back to color if missing)
 const TEX_HULL   := "res://assets/pictures/textures/tex_titanium.png"
@@ -75,6 +78,20 @@ func _ready() -> void:
 	_build_viewport()
 	_build_hud()
 	_init_job()
+
+
+func _unhandled_input(event: InputEvent) -> void:
+	if event is InputEventMouseButton:
+		var mb := event as InputEventMouseButton
+		if mb.pressed:
+			if mb.button_index == MOUSE_BUTTON_WHEEL_UP:
+				_cam_back = maxf(CAM_ZOOM_MIN, _cam_back - CAM_ZOOM_STEP)
+				_cam_up   = _cam_back * 0.36
+				get_viewport().set_input_as_handled()
+			elif mb.button_index == MOUSE_BUTTON_WHEEL_DOWN:
+				_cam_back = minf(CAM_ZOOM_MAX, _cam_back + CAM_ZOOM_STEP)
+				_cam_up   = _cam_back * 0.36
+				get_viewport().set_input_as_handled()
 
 
 # ── 3D Viewport ──────────────────────────────────────────────────────────────
@@ -332,17 +349,6 @@ func _build_from_layout(vis: Node3D, ship_nodes: Array, textures: Dictionary) ->
 
 		_build_room_shape(room_container, rtype, universe, cost, mat, box_sz)
 		_add_room_lights(room_container, rtype, box_sz)
-
-		# Tiny billboard label above the composite shape
-		var lbl := Label3D.new()
-		lbl.text          = def.get("name", "")
-		lbl.font_size     = 11
-		lbl.pixel_size    = 0.005
-		lbl.modulate      = Color(0.85, 0.92, 1.0, 0.65)
-		lbl.position      = Vector3(0.0, box_sz.y * 1.3 + 0.2, 0.0)
-		lbl.billboard     = BaseMaterial3D.BILLBOARD_ENABLED
-		lbl.no_depth_test = false
-		room_container.add_child(lbl)
 
 	# ── Compute hull adjacency map for gameplay bonuses ──────────────────────
 	_adjacencies = ShipBlueprint.compute_adjacencies(ship_nodes)
@@ -889,7 +895,12 @@ func _init_job() -> void:
 	_ship_nodes_ref = _params.get("ship_nodes", [])
 
 	# ── Build path ──────────────────────────────────────────────────────────
-	var dest_sys: Dictionary = StarMapData.pick_destination(days, cur_sys)
+	var dest_id: String = _params.get("destination_id", "")
+	var dest_sys: Dictionary
+	if not dest_id.is_empty():
+		dest_sys = StarMapData.find_system(dest_id)
+	if dest_sys.is_empty():
+		dest_sys = StarMapData.pick_destination(days, cur_sys)
 	_path_ids = StarMapData.build_path(cur_sys, dest_sys.id, days)
 
 	for sid in _path_ids:
@@ -941,14 +952,22 @@ func _init_job() -> void:
 
 	# ── Initial camera ───────────────────────────────────────────────────────
 	var initial_forward := (_waypoints[1] - _waypoints[0]).normalized()
-	_camera.global_position = _waypoints[0] - initial_forward * CAM_BACK + Vector3.UP * CAM_UP
+	_camera.global_position = _waypoints[0] - initial_forward * _cam_back + Vector3.UP * _cam_up
 	if _camera.global_position.distance_squared_to(_waypoints[0] + initial_forward * CAM_AHEAD) > 0.01:
 		_camera.look_at(_waypoints[0] + initial_forward * CAM_AHEAD, Vector3.UP)
 
 	# ── Base earnings ────────────────────────────────────────────────────────
-	var power_bonus: int = maxi(0, pwr / 100) * 10
-	var room_bonus:  int = node_count * 5
-	_earned = days * (50 + power_bonus + room_bonus)
+	var job_pay_per_day: int = _params.get("job_pay_per_day", 0)
+	if job_pay_per_day > 0:
+		# Job board pay rate — ship bonuses stack on top
+		var power_bonus: int = maxi(0, pwr / 100) * 10
+		var room_bonus:  int = node_count * 5
+		_earned = days * (job_pay_per_day + power_bonus + room_bonus)
+	else:
+		# Fallback legacy calculation
+		var power_bonus: int = maxi(0, pwr / 100) * 10
+		var room_bonus:  int = node_count * 5
+		_earned = days * (50 + power_bonus + room_bonus)
 	if pwr < 0:
 		_earned = int(_earned * 0.7)
 
@@ -961,7 +980,11 @@ func _init_job() -> void:
 	_lbl_day.text    = "Day 1 / %d" % days
 
 	# ── Opening log ──────────────────────────────────────────────────────────
-	_log("[color=#4488ff]═══  %s  —  %d-day voyage to %s  ═══[/color]" % [name_str, days, _wp_names[-1]])
+	var job_type: String = _params.get("job_type", "")
+	var job_label: String = "  —  %d-day voyage to %s" % [days, _wp_names[-1]]
+	if not job_type.is_empty():
+		job_label = "  —  %s  —  %d days to %s" % [job_type, days, _wp_names[-1]]
+	_log("[color=#4488ff]═══  %s%s  ═══[/color]" % [name_str, job_label])
 	_log("[color=#6688cc]  Departing %s. Engines spooling up…[/color]" % origin_name)
 	# Show real waypoints (skip the 2 cinematic entries at the front)
 	if _wp_names.size() > _n_cinematic_segs + 2:
@@ -1105,7 +1128,7 @@ func _update_camera(delta: float, forward: Vector3) -> void:
 
 	# ── Phase 0: departure cinematic — slow chase behind the ship ─────────
 	if _cam_phase == 0:
-		var target_cam := ship_pos - forward * CAM_BACK + Vector3.UP * CAM_UP
+		var target_cam := ship_pos - forward * _cam_back + Vector3.UP * _cam_up
 		_camera.global_position = _camera.global_position.lerp(target_cam, delta * 1.0)
 		var look_target := ship_pos + forward * CAM_AHEAD
 		if look_target.distance_squared_to(_camera.global_position) > 0.04:
@@ -1133,7 +1156,7 @@ func _update_camera(delta: float, forward: Vector3) -> void:
 
 	# ── Phase 2: chase follow — classic behind-the-ship camera ────────────
 	else:
-		var target_cam := ship_pos - forward * CAM_BACK + Vector3.UP * CAM_UP
+		var target_cam := ship_pos - forward * _cam_back + Vector3.UP * _cam_up
 		_camera.global_position = _camera.global_position.lerp(target_cam, delta * 2.2)
 		var look_target := ship_pos + forward * CAM_AHEAD
 		if look_target.distance_squared_to(_camera.global_position) > 0.04:

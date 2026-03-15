@@ -1,5 +1,6 @@
 ## port_menu.gd — Full-screen docking/port menu shown after arriving at a system.
-## Tabs: Summary, Repair, Crew, Shore Leave.  "Depart" button closes and returns.
+## Tabs: Summary, Repair, Crew, Shore Leave, Away Missions.
+## "Depart" button closes and returns.
 class_name PortMenu
 extends Control
 
@@ -15,6 +16,8 @@ const _ACCENT  := Color(0.310, 0.537, 0.843, 1.0)
 const _GOLD    := Color(1.000, 0.820, 0.310, 1.0)
 const _GREEN   := Color(0.310, 0.863, 0.545, 1.0)
 const _RED     := Color(0.863, 0.392, 0.310, 1.0)
+const _ORANGE  := Color(1.000, 0.600, 0.200, 1.0)
+const _PURPLE  := Color(0.700, 0.400, 0.900, 1.0)
 
 # ── State ────────────────────────────────────────────────────────────────────
 var _params: Dictionary = {}
@@ -26,6 +29,14 @@ var _ship_nodes: Array = []
 var _current_system: String = ""
 var _result: Dictionary = {}
 var _wages: int = 0
+
+# ── Away missions ────────────────────────────────────────────────────────────
+var _away_missions: Array = []       # available mission listings
+var _active_mission: Dictionary = {} # currently running mission (empty = none)
+var _mission_party: Array = []       # crew Dictionaries on the active mission
+
+# ── Port events ──────────────────────────────────────────────────────────────
+var _port_event: Dictionary = {}     # random event that fires on arrival (or empty)
 
 # ── UI refs ──────────────────────────────────────────────────────────────────
 var _content_area: Control
@@ -50,6 +61,9 @@ func setup(params: Dictionary) -> void:
 	var pool_size := 3 + randi() % 3
 	_hire_pool = CrewData.generate_pool(pool_size, _crew_counter + 100)
 
+	# Generate away missions for this port
+	_away_missions = _generate_away_missions()
+
 
 var _start_tab: String = "summary"
 
@@ -58,6 +72,9 @@ func _ready() -> void:
 	z_index = 50
 	_build_ui()
 	_show_tab(_start_tab)
+	# Roll for a random port event (~35% chance)
+	if randi() % 100 < 35:
+		_roll_port_event()
 
 
 func _build_ui() -> void:
@@ -108,7 +125,7 @@ func _build_ui() -> void:
 	tab_bar.add_theme_constant_override("separation", 4)
 	vbox.add_child(tab_bar)
 
-	for tab_name in ["summary", "repair", "crew", "shore_leave"]:
+	for tab_name in ["summary", "repair", "crew", "shore_leave", "away_missions"]:
 		var btn := Button.new()
 		btn.text = tab_name.replace("_", " ").to_upper()
 		btn.add_theme_font_size_override("font_size", 11)
@@ -151,7 +168,7 @@ func _show_tab(tab_name: String) -> void:
 		child.queue_free()
 	# Highlight active tab
 	for i in _tab_buttons.size():
-		var names := ["summary", "repair", "crew", "shore_leave"]
+		var names := ["summary", "repair", "crew", "shore_leave", "away_missions"]
 		_tab_buttons[i].add_theme_color_override("font_color",
 			_ACCENT if names[i] == tab_name else _DIM)
 	# Build tab content
@@ -159,7 +176,8 @@ func _show_tab(tab_name: String) -> void:
 		"summary":     _build_summary()
 		"repair":      _build_repair()
 		"crew":        _build_crew()
-		"shore_leave": _build_shore_leave()
+		"shore_leave":    _build_shore_leave()
+		"away_missions":  _build_away_missions()
 
 
 # ══════════════════════════════════════════════════════════════════════════════
@@ -211,7 +229,7 @@ func _build_summary() -> void:
 func _build_repair() -> void:
 	var vb := _content_area as VBoxContainer
 	vb.add_child(_lbl("REPAIR SERVICES", 14, _ACCENT))
-	vb.add_child(_lbl("50 cr per room", 10, _DIM))
+	vb.add_child(_lbl("Cost scales with damage and room value", 10, _DIM))
 	vb.add_child(_lbl(""))
 
 	var scroll := ScrollContainer.new()
@@ -221,6 +239,7 @@ func _build_repair() -> void:
 	list.size_flags_horizontal = SIZE_EXPAND_FILL
 	scroll.add_child(list)
 
+	var total_repair_cost := 0
 	var damaged_count := 0
 	for node in _ship_nodes:
 		var sn := node as ShipNode
@@ -229,6 +248,9 @@ func _build_repair() -> void:
 		if def.is_empty(): continue
 		if sn.current_durability >= sn.max_durability: continue
 		damaged_count += 1
+
+		var cost := _repair_cost(sn, def)
+		total_repair_cost += cost
 
 		var row := HBoxContainer.new()
 		row.add_theme_constant_override("separation", 8)
@@ -241,7 +263,7 @@ func _build_repair() -> void:
 		row.add_child(_spacer())
 
 		var btn := Button.new()
-		btn.text = "Repair (50 cr)"
+		btn.text = "Repair (%d cr)" % cost
 		btn.add_theme_font_size_override("font_size", 10)
 		btn.pressed.connect(_repair_room.bind(sn, def))
 		row.add_child(btn)
@@ -252,20 +274,32 @@ func _build_repair() -> void:
 		# Repair all button
 		vb.add_child(_lbl(""))
 		var btn_all := Button.new()
-		btn_all.text = "REPAIR ALL (%d cr)" % (damaged_count * 50)
+		btn_all.text = "REPAIR ALL (%d cr)" % total_repair_cost
 		btn_all.add_theme_font_size_override("font_size", 12)
 		btn_all.add_theme_color_override("font_color", _GREEN)
 		btn_all.pressed.connect(_repair_all)
 		vb.add_child(btn_all)
 
 
+static func _repair_cost(sn: ShipNode, def: Dictionary) -> int:
+	## Cost scales with damage points lost and room cost tier.
+	var damage: int = sn.max_durability - sn.current_durability
+	if damage <= 0:
+		return 0
+	# Rate per durability point: base 0.5 cr + scales with room cost
+	var room_cost: int = def.get("cost", 100)
+	var rate: float = 0.5 + float(room_cost) / 500.0
+	return maxi(5, roundi(float(damage) * rate))
+
+
 func _repair_room(sn: ShipNode, def: Dictionary) -> void:
-	if _credits < 50:
+	var cost := _repair_cost(sn, def)
+	if _credits < cost:
 		return
-	_credits -= 50
+	_credits -= cost
 	sn.repair_full(def)
 	_refresh_credits()
-	_show_tab("repair")   # refresh
+	_show_tab("repair")
 
 
 func _repair_all() -> void:
@@ -274,9 +308,11 @@ func _repair_all() -> void:
 		if sn == null: continue
 		var def := RoomData.find(sn.def_id)
 		if def.is_empty(): continue
-		if sn.current_durability < sn.max_durability and _credits >= 50:
-			_credits -= 50
-			sn.repair_full(def)
+		if sn.current_durability < sn.max_durability:
+			var cost := _repair_cost(sn, def)
+			if _credits >= cost:
+				_credits -= cost
+				sn.repair_full(def)
 	_refresh_credits()
 	_show_tab("repair")
 
@@ -369,6 +405,8 @@ func _crew_row(cm: Dictionary, is_owned: bool) -> HBoxContainer:
 		var status: String = cm.get("status", "active")
 		if status == "shore_leave":
 			row.add_child(_lbl("ON LEAVE", 10, _GOLD))
+		elif status == "on_mission":
+			row.add_child(_lbl("ON MISSION", 10, _PURPLE))
 		elif status == "arrested":
 			row.add_child(_lbl("ARRESTED", 10, _RED))
 		elif assigned.is_empty():
@@ -396,6 +434,14 @@ func _crew_row(cm: Dictionary, is_owned: bool) -> HBoxContainer:
 			btn_un.add_theme_font_size_override("font_size", 10)
 			btn_un.pressed.connect(_unassign_crew.bind(cm))
 			row.add_child(btn_un)
+
+		# Dismiss button (available for all owned crew in any status)
+		var btn_dismiss := Button.new()
+		btn_dismiss.text = "Dismiss"
+		btn_dismiss.add_theme_font_size_override("font_size", 10)
+		btn_dismiss.add_theme_color_override("font_color", _RED)
+		btn_dismiss.pressed.connect(_dismiss_crew.bind(cm))
+		row.add_child(btn_dismiss)
 	else:
 		# Hire button
 		row.add_child(_spacer())
@@ -426,6 +472,43 @@ func _hire_crew(cm: Dictionary) -> void:
 func _unassign_crew(cm: Dictionary) -> void:
 	cm.assigned_to = ""
 	_show_tab("crew")
+
+
+func _dismiss_crew(cm: Dictionary) -> void:
+	var severance: int = randi_range(1, 7) * CrewData.WAGE_PER_DAY
+	var crew_name: String = cm.get("name", "Crew")
+	_credits -= severance
+	if _credits < 0:
+		_credits = 0
+	_crew.erase(cm)
+	_refresh_credits()
+	_show_tab("crew")
+
+	# Brief toast-style popup
+	var popup := PanelContainer.new()
+	var style := StyleBoxFlat.new()
+	style.bg_color = Color(0.05, 0.07, 0.12, 0.96)
+	style.border_color = _RED
+	style.set_border_width_all(1)
+	style.set_corner_radius_all(6)
+	style.set_content_margin_all(12)
+	popup.add_theme_stylebox_override("panel", style)
+	popup.z_index = 60
+
+	var lbl := _lbl("%s dismissed. Severance: %d cr" % [crew_name, severance], 12, _TEXT)
+	popup.add_child(lbl)
+
+	add_child(popup)
+	popup.set_anchors_and_offsets_preset(PRESET_CENTER)
+	popup.offset_left = -160
+	popup.offset_right = 160
+	popup.offset_top = -20
+	popup.offset_bottom = 20
+
+	var tween := create_tween()
+	tween.tween_interval(2.0)
+	tween.tween_property(popup, "modulate:a", 0.0, 0.5)
+	tween.tween_callback(popup.queue_free)
 
 
 func _show_assign_dialog(cm: Dictionary) -> void:
@@ -681,6 +764,958 @@ func _resolve_shore_leave(cm: Dictionary) -> String:
 
 
 # ══════════════════════════════════════════════════════════════════════════════
+# TAB: AWAY MISSIONS
+# ══════════════════════════════════════════════════════════════════════════════
+
+const _AWAY_DANGER_COLORS: Dictionary = {
+	"safe":      Color(0.40, 0.80, 0.50, 1.0),
+	"moderate":  Color(0.90, 0.80, 0.30, 1.0),
+	"dangerous": Color(0.90, 0.50, 0.20, 1.0),
+	"extreme":   Color(0.95, 0.25, 0.20, 1.0),
+}
+
+const _AWAY_MISSION_DEFS: Array = [
+	{ "name": "Reactor Calibration",    "desc": "Recalibrate the local power grid.",                     "role": "Engineer",   "danger": "safe",      "party": 2 },
+	{ "name": "Cargo Inspection",       "desc": "Audit a warehouse for contraband.",                     "role": "Officer",    "danger": "safe",      "party": 2 },
+	{ "name": "Medical Aid",            "desc": "Provide emergency medical assistance planetside.",      "role": "Specialist", "danger": "safe",      "party": 2 },
+	{ "name": "System Repairs",         "desc": "Fix a malfunctioning station subsystem.",               "role": "Engineer",   "danger": "safe",      "party": 3 },
+	{ "name": "Security Patrol",        "desc": "Assist local security with a routine sweep.",           "role": "Security",   "danger": "moderate",  "party": 3 },
+	{ "name": "Diplomatic Escort",      "desc": "Escort a diplomat through contested territory.",        "role": "Officer",    "danger": "moderate",  "party": 3 },
+	{ "name": "Mining Survey",          "desc": "Survey unstable asteroid tunnels for mineral deposits.","role": "Engineer",   "danger": "moderate",  "party": 2 },
+	{ "name": "Data Recovery",          "desc": "Retrieve encrypted data from a damaged outpost.",       "role": "Specialist", "danger": "moderate",  "party": 2 },
+	{ "name": "Pirate Holdout Raid",    "desc": "Clear a pirate hideout in the lower decks.",            "role": "Security",   "danger": "dangerous", "party": 3 },
+	{ "name": "Rescue Operation",       "desc": "Extract survivors from a collapsed structure.",         "role": "Engineer",   "danger": "dangerous", "party": 3 },
+	{ "name": "Hostage Negotiation",    "desc": "Negotiate release of hostages from insurgents.",        "role": "Officer",    "danger": "dangerous", "party": 4 },
+	{ "name": "Artifact Retrieval",     "desc": "Recover a valuable artifact from hostile territory.",   "role": "Specialist", "danger": "dangerous", "party": 3 },
+	{ "name": "Black Market Deal",      "desc": "Handle a high-value exchange in lawless territory.",    "role": "Officer",    "danger": "extreme",   "party": 3 },
+	{ "name": "Warlord Takedown",       "desc": "Eliminate a local warlord destabilizing the sector.",   "role": "Security",   "danger": "extreme",   "party": 4 },
+	{ "name": "Reactor Meltdown",       "desc": "Prevent a cascading reactor failure. No margin for error.", "role": "Engineer", "danger": "extreme", "party": 3 },
+	{ "name": "Deep Recon",             "desc": "Infiltrate a fortified compound for intel.",            "role": "Security",   "danger": "extreme",   "party": 4 },
+]
+
+const _AWAY_PAY_RANGES: Dictionary = {
+	"safe":      { "min": 30, "max": 60 },
+	"moderate":  { "min": 60, "max": 120 },
+	"dangerous": { "min": 120, "max": 220 },
+	"extreme":   { "min": 220, "max": 400 },
+}
+
+const _AWAY_CREW_DAILY_COST: int = 12  # cost per crew per day on mission
+
+
+func _generate_away_missions() -> Array:
+	var pool := _AWAY_MISSION_DEFS.duplicate()
+	pool.shuffle()
+	var count := randi_range(2, mini(4, pool.size()))
+	var missions: Array = []
+	for i in count:
+		var def: Dictionary = pool[i]
+		var duration := randi_range(1, 4)
+		var pay_range: Dictionary = _AWAY_PAY_RANGES[def.danger]
+		var pay_per_day := randi_range(pay_range.min, pay_range.max)
+		# Longer missions pay a small daily premium
+		if duration >= 3:
+			pay_per_day += 15
+		missions.append({
+			"name":         def.name,
+			"desc":         def.desc,
+			"required_role": def.role,
+			"danger":       def.danger,
+			"party_size":   def.party,
+			"duration":     duration,
+			"pay_per_day":  pay_per_day,
+			"total_pay":    pay_per_day * duration,
+			"crew_cost":    _AWAY_CREW_DAILY_COST * def.party * duration,
+		})
+	# Sort safe → extreme
+	var danger_order := { "safe": 0, "moderate": 1, "dangerous": 2, "extreme": 3 }
+	missions.sort_custom(func(a: Dictionary, b: Dictionary) -> bool:
+		return danger_order.get(a.danger, 0) < danger_order.get(b.danger, 0))
+	return missions
+
+
+func _build_away_missions() -> void:
+	var vb := _content_area as VBoxContainer
+
+	var sys := StarMapData.find_system(_current_system)
+	var loc_name: String = sys.get("name", "Unknown") if not sys.is_empty() else "Unknown"
+	vb.add_child(_lbl("AWAY MISSIONS — %s" % loc_name, 14, _ACCENT))
+	vb.add_child(_lbl("Send a crew party planetside for local contracts.", 10, _DIM))
+	vb.add_child(_lbl(""))
+
+	# ── Active mission status ────────────────────────────────────────────────
+	if not _active_mission.is_empty():
+		_build_active_mission_panel(vb)
+		return
+
+	# ── Available missions ───────────────────────────────────────────────────
+	if _away_missions.is_empty():
+		vb.add_child(_lbl("No contracts available at this port.", 12, _DIM))
+		return
+
+	var available_crew := _get_available_crew()
+
+	var scroll := ScrollContainer.new()
+	scroll.size_flags_vertical = SIZE_EXPAND_FILL
+	vb.add_child(scroll)
+	var list := VBoxContainer.new()
+	list.size_flags_horizontal = SIZE_EXPAND_FILL
+	list.add_theme_constant_override("separation", 8)
+	scroll.add_child(list)
+
+	for mission in _away_missions:
+		list.add_child(_build_mission_card(mission, available_crew))
+
+
+func _build_active_mission_panel(vb: VBoxContainer) -> void:
+	var m := _active_mission
+	var danger_col: Color = _AWAY_DANGER_COLORS.get(m.danger, _TEXT)
+
+	var panel := PanelContainer.new()
+	var style := StyleBoxFlat.new()
+	style.bg_color = Color(0.06, 0.09, 0.15, 1.0)
+	style.border_color = danger_col.darkened(0.3)
+	style.set_border_width_all(1)
+	style.set_corner_radius_all(6)
+	style.set_content_margin_all(14)
+	panel.add_theme_stylebox_override("panel", style)
+	vb.add_child(panel)
+
+	var pv := VBoxContainer.new()
+	pv.add_theme_constant_override("separation", 6)
+	panel.add_child(pv)
+
+	pv.add_child(_lbl("ACTIVE MISSION: %s" % m.name, 13, danger_col))
+	pv.add_child(_lbl(m.desc, 10, _DIM))
+	pv.add_child(_lbl("Danger: %s  |  Duration: %d days  |  Pay: %d cr" % [
+		m.danger.to_upper(), m.duration, m.total_pay], 11, _TEXT))
+
+	# Show party members
+	pv.add_child(_lbl(""))
+	pv.add_child(_lbl("AWAY TEAM:", 11, _ACCENT))
+	for cm in _mission_party:
+		var row := HBoxContainer.new()
+		row.add_theme_constant_override("separation", 8)
+		pv.add_child(row)
+
+		var tex := TextureRect.new()
+		tex.custom_minimum_size = Vector2(32, 32)
+		tex.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+		tex.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+		var pp: String = cm.get("portrait", "")
+		if not pp.is_empty() and ResourceLoader.exists(pp):
+			tex.texture = load(pp)
+		row.add_child(tex)
+		row.add_child(_lbl(cm.get("name", "?"), 11, _TEXT))
+		row.add_child(_lbl(cm.get("role", "?"), 10, _DIM))
+
+	pv.add_child(_lbl(""))
+
+	# Wait button
+	var btn_wait := Button.new()
+	btn_wait.text = "WAIT FOR MISSION COMPLETION (%d days)" % m.duration
+	btn_wait.add_theme_font_size_override("font_size", 13)
+	btn_wait.add_theme_color_override("font_color", _ACCENT)
+	btn_wait.custom_minimum_size = Vector2(0, 36)
+	btn_wait.pressed.connect(_resolve_away_mission)
+	pv.add_child(btn_wait)
+
+	vb.add_child(_lbl(""))
+	vb.add_child(_lbl("Departing with an active mission will abandon the away team!", 10, _RED))
+
+
+func _build_mission_card(mission: Dictionary, available_crew: Array) -> PanelContainer:
+	var card := PanelContainer.new()
+	var style := StyleBoxFlat.new()
+	var danger_col: Color = _AWAY_DANGER_COLORS.get(mission.danger, _TEXT)
+	style.bg_color = Color(0.06, 0.09, 0.15, 1.0)
+	style.border_color = danger_col.darkened(0.4)
+	style.set_border_width_all(1)
+	style.set_corner_radius_all(4)
+	style.set_content_margin_all(10)
+	card.add_theme_stylebox_override("panel", style)
+
+	var hb := HBoxContainer.new()
+	hb.add_theme_constant_override("separation", 12)
+	card.add_child(hb)
+
+	# Left: mission info
+	var info := VBoxContainer.new()
+	info.add_theme_constant_override("separation", 2)
+	info.size_flags_horizontal = SIZE_EXPAND_FILL
+	hb.add_child(info)
+
+	# Title + danger badge
+	var title_row := HBoxContainer.new()
+	title_row.add_theme_constant_override("separation", 8)
+	info.add_child(title_row)
+	title_row.add_child(_lbl(mission.name, 12, _TEXT))
+	title_row.add_child(_lbl("[%s]" % mission.danger.to_upper(), 10, danger_col))
+
+	# Description
+	var desc_lbl := _lbl(mission.desc, 10, _DIM)
+	desc_lbl.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	info.add_child(desc_lbl)
+
+	# Stats
+	var crew_cost: int = mission.crew_cost
+	var net_pay: int = mission.total_pay - crew_cost
+	var stats := "%d days  |  Pay: %d cr  |  Crew cost: %d cr  |  Net: %s%d cr" % [
+		mission.duration, mission.total_pay, crew_cost,
+		"+" if net_pay >= 0 else "", net_pay]
+	var stats_col := _GREEN if net_pay > 0 else (_GOLD if net_pay == 0 else _RED)
+	info.add_child(_lbl(stats, 10, stats_col))
+
+	# Requirements
+	var req_text := "Requires: %s + %d crew" % [mission.required_role, mission.party_size]
+	info.add_child(_lbl(req_text, 10, _ACCENT))
+
+	# Check eligibility
+	var has_role := false
+	var active_count := 0
+	for cm in available_crew:
+		if cm.get("status", "active") == "active":
+			active_count += 1
+			if cm.get("role", "") == mission.required_role:
+				has_role = true
+
+	var can_send := true
+
+	# Banners
+	if not has_role:
+		var banner := _lbl("MISSING REQUIRED: %s" % mission.required_role, 10, _RED)
+		info.add_child(banner)
+		can_send = false
+
+	if active_count < mission.party_size:
+		var banner := _lbl("NOT ENOUGH CREW (need %d, have %d active)" % [
+			mission.party_size, active_count], 10, _RED)
+		info.add_child(banner)
+		can_send = false
+
+	# Right: Send button
+	var btn_col := VBoxContainer.new()
+	btn_col.size_flags_vertical = SIZE_SHRINK_CENTER
+	hb.add_child(btn_col)
+
+	var btn := Button.new()
+	btn.text = "Send Team"
+	btn.custom_minimum_size = Vector2(90, 32)
+	btn.add_theme_font_size_override("font_size", 11)
+	if can_send:
+		btn.add_theme_color_override("font_color", _GREEN)
+		btn.pressed.connect(_show_party_select.bind(mission))
+	else:
+		btn.disabled = true
+	btn_col.add_child(btn)
+
+	return card
+
+
+func _get_available_crew() -> Array:
+	var result: Array = []
+	for cm in _crew:
+		if cm.get("status", "active") == "active":
+			result.append(cm)
+	return result
+
+
+func _show_party_select(mission: Dictionary) -> void:
+	## Popup to pick crew for the away team.
+	var popup := PanelContainer.new()
+	var style := StyleBoxFlat.new()
+	style.bg_color = Color(0.04, 0.06, 0.10, 0.97)
+	style.border_color = _ACCENT
+	style.set_border_width_all(2)
+	style.set_corner_radius_all(8)
+	style.set_content_margin_all(16)
+	popup.add_theme_stylebox_override("panel", style)
+	popup.z_index = 60
+
+	var vb := VBoxContainer.new()
+	vb.add_theme_constant_override("separation", 6)
+	popup.add_child(vb)
+
+	var danger_col: Color = _AWAY_DANGER_COLORS.get(mission.danger, _TEXT)
+	vb.add_child(_lbl("SELECT AWAY TEAM — %s" % mission.name, 14, danger_col))
+	vb.add_child(_lbl("Required: %s  |  Party size: %d" % [mission.required_role, mission.party_size], 11, _ACCENT))
+	vb.add_child(_lbl(""))
+
+	var selected: Array = []
+	var checkboxes: Array = []  # parallel with available_crew
+	var available := _get_available_crew()
+
+	# Sort so the required role appears first
+	available.sort_custom(func(a: Dictionary, b: Dictionary) -> bool:
+		var a_match := 1 if a.get("role", "") == mission.required_role else 0
+		var b_match := 1 if b.get("role", "") == mission.required_role else 0
+		return a_match > b_match)
+
+	var scroll := ScrollContainer.new()
+	scroll.custom_minimum_size.y = 200
+	scroll.size_flags_vertical = SIZE_EXPAND_FILL
+	vb.add_child(scroll)
+	var crew_list := VBoxContainer.new()
+	crew_list.size_flags_horizontal = SIZE_EXPAND_FILL
+	crew_list.add_theme_constant_override("separation", 4)
+	scroll.add_child(crew_list)
+
+	var lbl_status := _lbl("Selected: 0 / %d" % mission.party_size, 12, _GOLD)
+	var btn_confirm := Button.new()
+
+	for cm in available:
+		var row := HBoxContainer.new()
+		row.add_theme_constant_override("separation", 8)
+		row.custom_minimum_size.y = 36
+		crew_list.add_child(row)
+
+		var cb := CheckBox.new()
+		row.add_child(cb)
+		checkboxes.append(cb)
+
+		# Portrait mini
+		var tex := TextureRect.new()
+		tex.custom_minimum_size = Vector2(32, 32)
+		tex.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+		tex.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+		var pp: String = cm.get("portrait", "")
+		if not pp.is_empty() and ResourceLoader.exists(pp):
+			tex.texture = load(pp)
+		row.add_child(tex)
+
+		var nm := _lbl(cm.get("name", "?"), 11, _TEXT)
+		nm.custom_minimum_size.x = 120
+		row.add_child(nm)
+
+		var role_col := _ACCENT if cm.get("role", "") == mission.required_role else _DIM
+		var role_suffix := " (req)" if cm.get("role", "") == mission.required_role else ""
+		row.add_child(_lbl(cm.get("role", "?") + role_suffix, 10, role_col))
+
+		var eff: float = cm.get("efficiency", 0.5)
+		var eff_col := _GREEN if eff >= 0.7 else (_GOLD if eff >= 0.5 else _RED)
+		row.add_child(_lbl("Eff: %d%%" % int(eff * 100), 10, eff_col))
+
+		# Closure over cm
+		var crew_ref: Dictionary = cm
+		cb.toggled.connect(func(pressed: bool) -> void:
+			if pressed and not selected.has(crew_ref):
+				selected.append(crew_ref)
+			elif not pressed and selected.has(crew_ref):
+				selected.erase(crew_ref)
+			lbl_status.text = "Selected: %d / %d" % [selected.size(), mission.party_size]
+			# Enable confirm only when exactly party_size selected and has required role
+			var has_req := false
+			for sel in selected:
+				if sel.get("role", "") == mission.required_role:
+					has_req = true
+					break
+			btn_confirm.disabled = selected.size() != mission.party_size or not has_req
+		)
+
+	vb.add_child(lbl_status)
+	vb.add_child(_lbl(""))
+
+	# Buttons
+	var btn_row := HBoxContainer.new()
+	btn_row.add_theme_constant_override("separation", 8)
+	vb.add_child(btn_row)
+
+	btn_confirm.text = "Deploy Away Team"
+	btn_confirm.add_theme_font_size_override("font_size", 12)
+	btn_confirm.add_theme_color_override("font_color", _GREEN)
+	btn_confirm.custom_minimum_size = Vector2(160, 32)
+	btn_confirm.disabled = true
+	btn_confirm.pressed.connect(func() -> void:
+		popup.queue_free()
+		_deploy_away_team(mission, selected))
+	btn_row.add_child(btn_confirm)
+
+	var btn_cancel := Button.new()
+	btn_cancel.text = "Cancel"
+	btn_cancel.add_theme_font_size_override("font_size", 12)
+	btn_cancel.custom_minimum_size = Vector2(80, 32)
+	btn_cancel.pressed.connect(func() -> void: popup.queue_free())
+	btn_row.add_child(btn_cancel)
+
+	add_child(popup)
+	popup.set_anchors_and_offsets_preset(PRESET_CENTER)
+	popup.offset_left  = -240
+	popup.offset_right =  240
+	popup.offset_top   = -200
+	popup.offset_bottom = 200
+
+
+func _deploy_away_team(mission: Dictionary, party: Array) -> void:
+	# Pay upfront
+	_credits += mission.total_pay
+	# Deduct crew costs upfront
+	_credits -= mission.crew_cost
+
+	_active_mission = mission
+	_mission_party = party
+
+	# Set crew status
+	for cm in party:
+		cm.status = "on_mission"
+		cm.assigned_to = ""
+
+	_refresh_credits()
+	_show_tab("away_missions")
+
+
+func _resolve_away_mission() -> void:
+	## Resolve the active mission — outcomes per crew member based on danger.
+	var mission := _active_mission
+	var danger: String = mission.get("danger", "safe")
+	var results: Array = []  # Array of { crew, outcome, text, lost }
+	var reporter: Dictionary = {}  # crew member who gives the debrief
+	var party := _mission_party.duplicate()
+
+	# Average team efficiency affects success odds
+	var avg_eff := 0.0
+	for cm in party:
+		avg_eff += cm.get("efficiency", 0.5)
+	avg_eff /= maxf(party.size(), 1.0)
+	# Efficiency bonus: high efficiency shifts outcomes toward success (+0 to +15)
+	var eff_bonus: int = roundi((avg_eff - 0.5) * 30.0)
+
+	for cm in party:
+		var roll: int = randi() % 100 + eff_bonus
+		var outcome := _roll_mission_outcome(cm, danger, roll)
+		results.append(outcome)
+
+	# Pick a surviving crew member as reporter
+	for r in results:
+		if not r.lost:
+			reporter = r.crew
+			break
+	# If everyone is lost, use the first one's data for the portrait anyway
+	if reporter.is_empty() and not results.is_empty():
+		reporter = results[0].crew
+
+	# Apply outcomes
+	for r in results:
+		if r.lost:
+			_crew.erase(r.crew)
+		else:
+			r.crew.status = "active"
+
+	_active_mission = {}
+	_mission_party = []
+
+	_refresh_credits()
+	_show_tab("away_missions")
+
+	# Show debrief popup
+	_show_mission_debrief(mission, results, reporter)
+
+
+func _roll_mission_outcome(cm: Dictionary, danger: String, roll: int) -> Dictionary:
+	## Roll outcome for a single crew member.  Higher roll = better.
+	var crew_name: String = cm.get("name", "Crew")
+	var result := { "crew": cm, "lost": false, "text": "" }
+
+	# Thresholds shift with danger (lower = more dangerous)
+	var death_thresh := 0
+	var lost_thresh  := 0   # AWOL / captured / kidnapped
+	var injury_thresh := 0
+	var bonus_thresh := 0
+
+	match danger:
+		"safe":
+			death_thresh  = -10  # essentially impossible
+			lost_thresh   = -5
+			injury_thresh = 5
+			bonus_thresh  = 75
+		"moderate":
+			death_thresh  = 3
+			lost_thresh   = 10
+			injury_thresh = 25
+			bonus_thresh  = 70
+		"dangerous":
+			death_thresh  = 10
+			lost_thresh   = 22
+			injury_thresh = 40
+			bonus_thresh  = 65
+		"extreme":
+			death_thresh  = 20
+			lost_thresh   = 38
+			injury_thresh = 55
+			bonus_thresh  = 65
+
+	if roll < death_thresh:
+		# Killed in action
+		result.lost = true
+		var causes := ["killed in a firefight", "caught in an explosion",
+			"fatally wounded during extraction", "lost to hostile fire"]
+		result.text = "%s was %s." % [crew_name, causes[randi() % causes.size()]]
+	elif roll < lost_thresh:
+		# AWOL / captured / kidnapped
+		result.lost = true
+		var causes := ["went AWOL and never returned", "was captured by hostiles",
+			"was kidnapped during the operation", "disappeared without a trace",
+			"defected to a local faction"]
+		result.text = "%s %s." % [crew_name, causes[randi() % causes.size()]]
+	elif roll < injury_thresh:
+		# Injured — efficiency drops
+		var loss := randf_range(0.05, 0.15)
+		cm.efficiency = maxf(0.15, cm.get("efficiency", 0.5) - loss)
+		result.text = "%s was injured. Efficiency dropped to %d%%." % [
+			crew_name, int(cm.efficiency * 100)]
+	elif roll >= bonus_thresh:
+		# Exceptional performance — bonus loot or efficiency gain
+		var bonus_roll := randi() % 100
+		if bonus_roll < 50:
+			var loot := randi_range(40, 200)
+			_credits += loot
+			result.text = "%s recovered valuable goods during the mission. +%d cr" % [crew_name, loot]
+		elif bonus_roll < 80:
+			var boost := randf_range(0.03, 0.08)
+			cm.efficiency = minf(1.0, cm.get("efficiency", 0.5) + boost)
+			result.text = "%s performed exceptionally. Efficiency now %d%%." % [
+				crew_name, int(cm.efficiency * 100)]
+		else:
+			# Intel bonus — discovered something
+			var finds := ["a stash of rare components (+120 cr)", "a hidden cache of credits (+80 cr)",
+				"classified intel worth selling (+150 cr)", "a crate of medical supplies (+60 cr)"]
+			var pick: String = finds[randi() % finds.size()]
+			var val := 80
+			if "+120" in pick: val = 120
+			elif "+150" in pick: val = 150
+			elif "+60" in pick: val = 60
+			_credits += val
+			result.text = "%s found %s" % [crew_name, pick]
+	else:
+		# Clean return
+		var clean := ["completed the mission without incident.",
+			"returned safely — mission accomplished.",
+			"executed the objective and returned to ship.",
+			"finished the job. No complications."]
+		result.text = "%s %s" % [crew_name, clean[randi() % clean.size()]]
+
+	return result
+
+
+func _show_mission_debrief(mission: Dictionary, results: Array, reporter: Dictionary) -> void:
+	var popup := PanelContainer.new()
+	var style := StyleBoxFlat.new()
+	style.bg_color = Color(0.04, 0.06, 0.10, 0.97)
+	var danger_col: Color = _AWAY_DANGER_COLORS.get(mission.danger, _ACCENT)
+	style.border_color = danger_col
+	style.set_border_width_all(2)
+	style.set_corner_radius_all(8)
+	style.set_content_margin_all(16)
+	popup.add_theme_stylebox_override("panel", style)
+	popup.z_index = 65
+
+	var outer_hb := HBoxContainer.new()
+	outer_hb.add_theme_constant_override("separation", 16)
+	popup.add_child(outer_hb)
+
+	# Left: reporter portrait
+	var portrait_vb := VBoxContainer.new()
+	portrait_vb.add_theme_constant_override("separation", 4)
+	outer_hb.add_child(portrait_vb)
+
+	var tex := TextureRect.new()
+	tex.custom_minimum_size = Vector2(96, 96)
+	tex.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+	tex.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+	var pp: String = reporter.get("portrait", "")
+	if not pp.is_empty() and ResourceLoader.exists(pp):
+		tex.texture = load(pp)
+	portrait_vb.add_child(tex)
+	portrait_vb.add_child(_lbl(reporter.get("name", "Unknown"), 11, _TEXT))
+	portrait_vb.add_child(_lbl("Reporting", 9, _DIM))
+
+	# Right: debrief
+	var vb := VBoxContainer.new()
+	vb.add_theme_constant_override("separation", 5)
+	vb.size_flags_horizontal = SIZE_EXPAND_FILL
+	outer_hb.add_child(vb)
+
+	vb.add_child(_lbl("MISSION DEBRIEF", 15, danger_col))
+	vb.add_child(_lbl(mission.name, 12, _TEXT))
+	vb.add_child(_lbl(""))
+
+	# Outcome lines
+	var losses := 0
+	for r in results:
+		var col := _RED if r.lost else (_GOLD if "injured" in r.text.to_lower() or "dropped" in r.text.to_lower() else _TEXT)
+		if r.lost:
+			losses += 1
+		var outcome_lbl := _lbl(r.text, 11, col)
+		outcome_lbl.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+		vb.add_child(outcome_lbl)
+
+	vb.add_child(_lbl(""))
+
+	# Summary line
+	if losses == 0:
+		vb.add_child(_lbl("All crew returned safely.", 12, _GREEN))
+	elif losses == results.size():
+		vb.add_child(_lbl("The entire team was lost.", 12, _RED))
+	else:
+		vb.add_child(_lbl("%d crew member%s lost." % [losses, "s" if losses > 1 else ""], 12, _ORANGE))
+
+	vb.add_child(_lbl(""))
+
+	var btn_ok := Button.new()
+	btn_ok.text = "Acknowledged"
+	btn_ok.add_theme_font_size_override("font_size", 12)
+	btn_ok.custom_minimum_size = Vector2(120, 32)
+	btn_ok.pressed.connect(func() -> void:
+		popup.queue_free()
+		_show_tab("away_missions"))
+	vb.add_child(btn_ok)
+
+	add_child(popup)
+	popup.set_anchors_and_offsets_preset(PRESET_CENTER)
+	popup.offset_left  = -260
+	popup.offset_right =  260
+	popup.offset_top   = -180
+	popup.offset_bottom = 180
+
+
+# ══════════════════════════════════════════════════════════════════════════════
+# PORT EVENTS — random encounters on arrival
+# ══════════════════════════════════════════════════════════════════════════════
+
+func _roll_port_event() -> void:
+	## Pick and execute a random port event. Called once on arrival (~35% chance).
+	var sys := StarMapData.find_system(_current_system)
+	var sys_name: String = sys.get("name", "this port") if not sys.is_empty() else "this port"
+	var sys_type: String = sys.get("type", "star") if not sys.is_empty() else "star"
+
+	# Weighted event pool — some events need prerequisites
+	var pool: Array = []
+
+	# Always available
+	pool.append({ "id": "merchant",     "weight": 20 })
+	pool.append({ "id": "bar_rumor",    "weight": 15 })
+	pool.append({ "id": "mysterious_package", "weight": 10 })
+
+	# Need crew to have these
+	if _crew.size() >= 1:
+		pool.append({ "id": "stowaway",     "weight": 15 })
+		pool.append({ "id": "bar_fight",    "weight": 12 })
+		pool.append({ "id": "crew_bonding", "weight": 12 })
+
+	if _crew.size() >= 2:
+		pool.append({ "id": "old_friend",   "weight": 8 })
+
+	# Station/planet specific
+	if sys_type in ["station", "planet"]:
+		pool.append({ "id": "customs_inspection", "weight": 10 })
+		pool.append({ "id": "refugee",            "weight": 8 })
+
+	# Dangerous areas
+	if StarMapData.is_harsh(sys.get("id", "")):
+		pool.append({ "id": "black_market_tip", "weight": 15 })
+		pool.append({ "id": "hull_scrape",       "weight": 10 })
+
+	# Weighted pick
+	var total_weight := 0
+	for e in pool:
+		total_weight += e.weight
+	var roll := randi() % total_weight
+	var pick_id := "bar_rumor"
+	var running := 0
+	for e in pool:
+		running += e.weight
+		if roll < running:
+			pick_id = e.id
+			break
+
+	_execute_port_event(pick_id, sys_name)
+
+
+func _execute_port_event(event_id: String, sys_name: String) -> void:
+	var title := ""
+	var text := ""
+	var icon := ""
+	var color := _ACCENT
+	var choices: Array = []  # { label, callback }
+
+	match event_id:
+		"stowaway":
+			_crew_counter += 1
+			var stowaway := CrewData.generate_crew("", _crew_counter)
+			stowaway.efficiency = snappedf(randf_range(0.25, 0.55), 0.01)
+			icon  = "👤"
+			title = "STOWAWAY FOUND"
+			text  = "Security found %s hiding in a cargo bay. They claim to be a %s looking for work. Low experience, but they'll work for free — no hire cost." % [
+				stowaway.name, stowaway.role]
+			color = _GOLD
+			choices.append({ "label": "Welcome aboard", "action": func() -> void:
+				_crew.append(stowaway)
+				_show_tab(_current_tab) })
+			choices.append({ "label": "Turn them away", "action": func() -> void: pass })
+
+		"merchant":
+			var discount := randi_range(20, 45)
+			var bonus_cr := randi_range(60, 200)
+			icon  = "💰"
+			title = "TRAVELLING MERCHANT"
+			text  = "A merchant approaches your ship offering surplus supplies at a steep discount. Pay %d cr now for goods worth reselling at your next stop." % bonus_cr
+			color = _GOLD
+			var cost: int = int(bonus_cr * (1.0 - discount / 100.0))
+			choices.append({ "label": "Buy goods (%d cr)" % cost, "action": func() -> void:
+				if _credits >= cost:
+					_credits -= cost
+					# Store the profit for next port arrival — simplified: just give it now
+					_credits += bonus_cr
+					_refresh_credits() })
+			choices.append({ "label": "No thanks", "action": func() -> void: pass })
+
+		"bar_rumor":
+			icon  = "🍺"
+			title = "BAR RUMOR"
+			var rumors := [
+				"A drunk pilot swears there's a derelict full of salvage near %s. Could be worth checking out on your next run." % sys_name,
+				"Word at the bar: a shipping guild is looking for reliable captains. Freight jobs from %s should pay better for a while." % sys_name,
+				"An old spacer tells you about a shortcut through the nebula. \"Saves two days, but your hull won't thank you.\"",
+				"Rumor has it a pirate fleet is regrouping near the outer systems. Tactical crews are in high demand.",
+				"A trader mentions that crew from %s tend to be more experienced. Might be worth hiring here." % sys_name,
+			]
+			text = rumors[randi() % rumors.size()]
+			color = _ACCENT
+			# Some rumors have a small tangible benefit
+			if randi() % 100 < 40:
+				var tip_cr := randi_range(15, 50)
+				text += "\n\nThe information proves useful — you adjust your plans accordingly. +%d cr" % tip_cr
+				_credits += tip_cr
+				_refresh_credits()
+			choices.append({ "label": "Interesting...", "action": func() -> void: pass })
+
+		"bar_fight":
+			icon  = "👊"
+			title = "BAR FIGHT"
+			var victim: Dictionary = _crew[randi() % _crew.size()]
+			var victim_name: String = victim.get("name", "A crew member")
+			var roll := randi() % 100
+			if roll < 50:
+				text = "%s got into a scuffle at a local bar but came out on top. No harm done — just a bruised ego on the other guy." % victim_name
+				color = _GREEN
+			elif roll < 80:
+				var fine := randi_range(20, 60)
+				text = "%s started a fight at the cantina. Station security slapped you with a %d cr fine." % [victim_name, fine]
+				_credits = maxi(0, _credits - fine)
+				_refresh_credits()
+				color = _ORANGE
+			else:
+				var loss := randf_range(0.03, 0.08)
+				victim.efficiency = maxf(0.20, victim.get("efficiency", 0.5) - loss)
+				text = "%s took a beating in a bar fight. Efficiency dropped to %d%%." % [
+					victim_name, int(victim.efficiency * 100)]
+				color = _RED
+			choices.append({ "label": "Noted", "action": func() -> void: _show_tab(_current_tab) })
+
+		"mysterious_package":
+			icon  = "📦"
+			title = "MYSTERIOUS PACKAGE"
+			text  = "A hooded figure left a sealed crate at your docking bay with a note: \"Don't open until you're in deep space.\" Do you take it?"
+			color = _PURPLE
+			choices.append({ "label": "Take the crate", "action": func() -> void:
+				var outcome := randi() % 100
+				if outcome < 40:
+					var loot := randi_range(80, 250)
+					_credits += loot
+					_refresh_credits()
+					_show_event_followup("📦", "CRATE OPENED",
+						"Inside: a stash of rare components worth %d cr. Lucky find." % loot, _GREEN)
+				elif outcome < 70:
+					_crew_counter += 1
+					var recruit := CrewData.generate_crew("", _crew_counter)
+					_crew.append(recruit)
+					_show_event_followup("📦", "CRATE OPENED",
+						"It's... a cryo pod? %s (%s) thaws out and offers to join your crew." % [
+							recruit.name, recruit.role], _ACCENT)
+				elif outcome < 90:
+					_show_event_followup("📦", "CRATE OPENED",
+						"Empty. Just packing foam and a note that says \"GOTCHA\". Waste of time.", _DIM)
+				else:
+					var fine := randi_range(80, 150)
+					_credits = maxi(0, _credits - fine)
+					_refresh_credits()
+					_show_event_followup("📦", "CRATE OPENED",
+						"Contraband. Station security confiscates it and fines you %d cr." % fine, _RED)
+			})
+			choices.append({ "label": "Leave it alone", "action": func() -> void: pass })
+
+		"old_friend":
+			icon  = "🤝"
+			title = "OLD FRIEND"
+			var crew_member: Dictionary = _crew[randi() % _crew.size()]
+			var cm_name: String = crew_member.get("name", "One of your crew")
+			var boost := randf_range(0.04, 0.10)
+			crew_member.efficiency = minf(1.0, crew_member.get("efficiency", 0.5) + boost)
+			text = "%s ran into an old academy friend at the port. They swapped stories and techniques over drinks. Efficiency increased to %d%%." % [
+				cm_name, int(crew_member.efficiency * 100)]
+			color = _GREEN
+			choices.append({ "label": "Good for them", "action": func() -> void: _show_tab(_current_tab) })
+
+		"customs_inspection":
+			icon  = "🔍"
+			title = "CUSTOMS INSPECTION"
+			var roll := randi() % 100
+			if roll < 65:
+				text = "Port authority conducted a routine inspection of your vessel. Everything checks out — you're cleared."
+				color = _GREEN
+			else:
+				var fine := randi_range(30, 100)
+				text = "Customs found an expired cargo manifest and hit you with a %d cr administrative fine. Bureaucracy at its finest." % fine
+				_credits = maxi(0, _credits - fine)
+				_refresh_credits()
+				color = _ORANGE
+			choices.append({ "label": "Understood", "action": func() -> void: pass })
+
+		"refugee":
+			icon  = "🚀"
+			title = "REFUGEE REQUEST"
+			_crew_counter += 1
+			var refugee := CrewData.generate_crew("", _crew_counter)
+			refugee.efficiency = snappedf(randf_range(0.40, 0.70), 0.01)
+			var payment := randi_range(40, 120)
+			text = "A %s named %s approaches your ship, desperate for passage. They offer %d cr and their skills if you'll take them on. Efficiency: %d%%." % [
+				refugee.role, refugee.name, payment, int(refugee.efficiency * 100)]
+			color = _ACCENT
+			choices.append({ "label": "Take them in (+%d cr)" % payment, "action": func() -> void:
+				_credits += payment
+				_crew.append(refugee)
+				_refresh_credits()
+				_show_tab(_current_tab) })
+			choices.append({ "label": "Can't help", "action": func() -> void: pass })
+
+		"black_market_tip":
+			icon  = "🕶"
+			title = "BLACK MARKET TIP"
+			var payout := randi_range(100, 300)
+			var risk_cost := randi_range(40, 80)
+			text = "A shady contact offers you intel on a lucrative deal. Invest %d cr now, get %d cr back. \"Guaranteed,\" they say." % [risk_cost, payout]
+			color = _PURPLE
+			choices.append({ "label": "Invest %d cr" % risk_cost, "action": func() -> void:
+				if _credits >= risk_cost:
+					_credits -= risk_cost
+					if randi() % 100 < 70:  # 70% chance it pays off
+						_credits += payout
+						_refresh_credits()
+						_show_event_followup("🕶", "DEAL COMPLETE",
+							"The contact came through. +%d cr profit." % (payout - risk_cost), _GREEN)
+					else:
+						_refresh_credits()
+						_show_event_followup("🕶", "DEAL GONE WRONG",
+							"The contact vanished with your money. -%d cr." % risk_cost, _RED)
+			})
+			choices.append({ "label": "Too risky", "action": func() -> void: pass })
+
+		"hull_scrape":
+			icon  = "💥"
+			title = "DOCKING DAMAGE"
+			text = "Rough docking conditions at this station scraped your hull during approach."
+			color = _ORANGE
+			var damaged_rooms := 0
+			for node in _ship_nodes:
+				var sn := node as ShipNode
+				if sn == null: continue
+				if randi() % 100 < 30:  # 30% chance per room
+					sn.apply_damage(randi_range(2, 6))
+					damaged_rooms += 1
+			if damaged_rooms > 0:
+				text += " %d room%s took minor damage." % [damaged_rooms, "s" if damaged_rooms > 1 else ""]
+			else:
+				text += " Luckily, no significant damage."
+				color = _GREEN
+			choices.append({ "label": "Check the damage report", "action": func() -> void: _show_tab("repair") })
+
+		"crew_bonding":
+			icon  = "🎯"
+			title = "CREW BONDING"
+			var boosted: Array = []
+			for cm in _crew:
+				if cm.get("status", "active") == "active" and randi() % 100 < 40:
+					var boost := randf_range(0.02, 0.05)
+					cm.efficiency = minf(1.0, cm.get("efficiency", 0.5) + boost)
+					boosted.append(cm.get("name", "?"))
+			if boosted.is_empty():
+				text = "Your crew spent some downtime together at the station, but nothing remarkable happened."
+				color = _DIM
+			elif boosted.size() == 1:
+				text = "Your crew spent downtime together. %s picked up some new techniques from the others. Efficiency increased." % boosted[0]
+				color = _GREEN
+			else:
+				text = "Shore time brought your crew closer together. %s and %s improved their skills." % [
+					", ".join(boosted.slice(0, -1)), boosted[-1]]
+				color = _GREEN
+			choices.append({ "label": "Good to hear", "action": func() -> void: _show_tab(_current_tab) })
+
+	# Show the event popup
+	if not title.is_empty():
+		_show_port_event_popup(icon, title, text, color, choices)
+
+
+func _show_port_event_popup(icon: String, title: String, text: String,
+		color: Color, choices: Array) -> void:
+	var popup := PanelContainer.new()
+	var style := StyleBoxFlat.new()
+	style.bg_color = Color(0.03, 0.05, 0.09, 0.97)
+	style.border_color = color
+	style.set_border_width_all(2)
+	style.set_corner_radius_all(8)
+	style.set_content_margin_all(18)
+	popup.add_theme_stylebox_override("panel", style)
+	popup.z_index = 70
+
+	var vb := VBoxContainer.new()
+	vb.add_theme_constant_override("separation", 8)
+	popup.add_child(vb)
+
+	# Icon + title
+	var header := HBoxContainer.new()
+	header.add_theme_constant_override("separation", 10)
+	vb.add_child(header)
+	header.add_child(_lbl(icon, 22, color))
+	header.add_child(_lbl(title, 16, color))
+
+	# Body text
+	var body := _lbl(text, 11, _TEXT)
+	body.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	vb.add_child(body)
+
+	vb.add_child(_lbl(""))
+
+	# Choice buttons
+	var btn_row := HBoxContainer.new()
+	btn_row.add_theme_constant_override("separation", 8)
+	vb.add_child(btn_row)
+
+	for choice in choices:
+		var btn := Button.new()
+		btn.text = choice.label
+		btn.add_theme_font_size_override("font_size", 11)
+		btn.custom_minimum_size = Vector2(120, 30)
+		var action: Callable = choice.action
+		btn.pressed.connect(func() -> void:
+			action.call()
+			popup.queue_free())
+		btn_row.add_child(btn)
+
+	add_child(popup)
+	popup.set_anchors_and_offsets_preset(PRESET_CENTER)
+	popup.offset_left  = -230
+	popup.offset_right =  230
+	popup.offset_top   = -120
+	popup.offset_bottom = 120
+
+
+func _show_event_followup(icon: String, title: String, text: String, color: Color) -> void:
+	## Small follow-up popup for delayed event outcomes (e.g. opening the crate).
+	_show_port_event_popup(icon, title, text, color, [
+		{ "label": "OK", "action": func() -> void: _show_tab(_current_tab) }
+	])
+
+
+# ══════════════════════════════════════════════════════════════════════════════
 # DEPART
 # ══════════════════════════════════════════════════════════════════════════════
 func _on_depart() -> void:
@@ -688,7 +1723,7 @@ func _on_depart() -> void:
 	var abandoned: Array = []
 	for cm in _crew.duplicate():
 		var status: String = cm.get("status", "active")
-		if status == "shore_leave" or status == "arrested":
+		if status in ["shore_leave", "arrested", "on_mission"]:
 			abandoned.append(cm.get("name", "Unknown"))
 			_crew.erase(cm)
 

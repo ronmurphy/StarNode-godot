@@ -14,7 +14,7 @@ var lbl_room_detail: RichTextLabel
 var cb_universe: OptionButton
 var cb_type: OptionButton
 var txt_search: LineEdit
-var spin_days: SpinBox
+var _job_board_popup: PanelContainer  # active job board modal (if open)
 var btn_delete_mode: Button
 var btn_hull_edit: Button
 var _blueprint_ctrl: ShipBlueprint
@@ -157,16 +157,7 @@ func _build_header(parent: Control) -> void:
 
 	_add_vsep(hbox)
 
-	hbox.add_child(_make_label("Job days:", 10))
-	spin_days = SpinBox.new()
-	spin_days.min_value = 1
-	spin_days.max_value = 30
-	spin_days.value = 7
-	spin_days.size_flags_vertical = Control.SIZE_SHRINK_CENTER
-	spin_days.custom_minimum_size.x = 70
-	hbox.add_child(spin_days)
-
-	var btn_job := _make_btn("▶ Run Job", 90, _on_run_job)
+	var btn_job := _make_btn("📋 Find Job", 100, _on_find_job)
 	btn_job.add_theme_color_override("font_color", Color(0.5, 1.0, 0.6, 1.0))
 	hbox.add_child(btn_job)
 
@@ -806,6 +797,14 @@ func _load_from_file(path: String) -> void:
 	_crew           = data.get("crew",           [])
 	_crew_counter   = data.get("crew_counter",   0)
 	_jobs_completed = data.get("jobs_completed", 0)
+
+	# Sanitize crew status — clear any in-progress states from a mid-session save
+	for cm in _crew:
+		var status: String = cm.get("status", "active")
+		if status in ["on_mission", "shore_leave", "arrested"]:
+			cm.status = "active"
+			cm.assigned_to = ""
+			cm.shore_leave_days = 0
 	txt_ship_name.text = ship_name
 
 	# Restore nodes
@@ -853,32 +852,213 @@ func _load_from_file(path: String) -> void:
 
 
 # ── Job system ────────────────────────────────────────────────────────────────
-func _on_run_job() -> void:
+func _on_find_job() -> void:
 	var nodes := _all_nodes()
 	if nodes.is_empty():
 		_toast("Your ship has no rooms!")
 		return
+	if _job_board_popup and is_instance_valid(_job_board_popup):
+		return   # already open
 
-	var days := int(spin_days.value)
-	var pwr  := _total_power()
+	var listings: Array = StarMapData.generate_job_listings(_current_system)
+	if listings.is_empty():
+		_toast("No jobs available right now.")
+		return
 
-	# Launch the 3D star map — it handles all travel, damage, and events
+	_show_job_board(listings)
+
+
+func _show_job_board(listings: Array) -> void:
+	var popup := PanelContainer.new()
+	_job_board_popup = popup
+	var style := StyleBoxFlat.new()
+	style.bg_color = Color(0.04, 0.06, 0.10, 0.97)
+	style.border_color = CLR_ACCENT
+	style.set_border_width_all(2)
+	style.set_corner_radius_all(8)
+	style.set_content_margin_all(16)
+	popup.add_theme_stylebox_override("panel", style)
+	popup.z_index = 55
+
+	var vb := VBoxContainer.new()
+	vb.add_theme_constant_override("separation", 6)
+	popup.add_child(vb)
+
+	# Title
+	var cur_sys := StarMapData.find_system(_current_system)
+	var loc_name: String = cur_sys.get("name", _current_system) if not cur_sys.is_empty() else _current_system
+	var title := Label.new()
+	title.text = "JOB BOARD — %s" % loc_name
+	title.add_theme_font_size_override("font_size", 15)
+	title.add_theme_color_override("font_color", CLR_GOLD)
+	vb.add_child(title)
+
+	var subtitle := Label.new()
+	subtitle.text = "%d listing%s available" % [listings.size(), "s" if listings.size() != 1 else ""]
+	subtitle.add_theme_font_size_override("font_size", 10)
+	subtitle.add_theme_color_override("font_color", CLR_DIM)
+	vb.add_child(subtitle)
+
+	vb.add_child(HSeparator.new())
+
+	# Job listings
+	for job in listings:
+		var row := _build_job_row(job, popup)
+		vb.add_child(row)
+
+	# Close button
+	var btn_close := Button.new()
+	btn_close.text = "Close"
+	btn_close.add_theme_font_size_override("font_size", 11)
+	btn_close.pressed.connect(func() -> void:
+		popup.queue_free()
+		_job_board_popup = null)
+	vb.add_child(btn_close)
+
+	add_child(popup)
+	popup.set_anchors_and_offsets_preset(Control.PRESET_CENTER)
+	popup.offset_left  = -260
+	popup.offset_right =  260
+	popup.offset_top   = -220
+	popup.offset_bottom = 220
+
+
+func _build_job_row(job: Dictionary, popup: PanelContainer) -> PanelContainer:
+	var row_panel := PanelContainer.new()
+	var row_style := StyleBoxFlat.new()
+	row_style.bg_color = Color(0.06, 0.09, 0.15, 1.0)
+	row_style.border_color = Color(0.15, 0.22, 0.35, 1.0)
+	row_style.set_border_width_all(1)
+	row_style.set_corner_radius_all(4)
+	row_style.set_content_margin_all(10)
+	row_panel.add_theme_stylebox_override("panel", row_style)
+
+	var hb := HBoxContainer.new()
+	hb.add_theme_constant_override("separation", 12)
+	row_panel.add_child(hb)
+
+	# Left: job info
+	var info_vb := VBoxContainer.new()
+	info_vb.add_theme_constant_override("separation", 2)
+	info_vb.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	hb.add_child(info_vb)
+
+	# Job type + destination
+	var lbl_title := Label.new()
+	lbl_title.text = "%s → %s" % [job.job_type, job.destination_name]
+	lbl_title.add_theme_font_size_override("font_size", 12)
+	lbl_title.add_theme_color_override("font_color", Color(0.9, 0.92, 1.0, 1.0))
+	info_vb.add_child(lbl_title)
+
+	# Description
+	var lbl_desc := Label.new()
+	lbl_desc.text = job.job_desc
+	lbl_desc.add_theme_font_size_override("font_size", 10)
+	lbl_desc.add_theme_color_override("font_color", CLR_DIM)
+	lbl_desc.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	info_vb.add_child(lbl_desc)
+
+	# Stats line: days, pay/day, total, hazard
+	var stats_text := "%d days  |  %d cr/day  |  Total: %d cr" % [
+		job.days, job.pay_per_day, job.total_pay]
+	if job.harsh:
+		stats_text += "  |  ⚠ Hazardous"
+	var lbl_stats := Label.new()
+	lbl_stats.text = stats_text
+	lbl_stats.add_theme_font_size_override("font_size", 10)
+	lbl_stats.add_theme_color_override("font_color",
+		Color(0.86, 0.39, 0.31, 1.0) if job.harsh else Color(0.55, 0.72, 0.55, 1.0))
+	info_vb.add_child(lbl_stats)
+
+	# Durability warnings — estimate which rooms may fail during this trip
+	var at_risk := _estimate_at_risk_rooms(job.days, job.harsh)
+	if not at_risk.is_empty():
+		var warn_lbl := Label.new()
+		warn_lbl.text = "⚠ " + "  ".join(at_risk)
+		warn_lbl.add_theme_font_size_override("font_size", 10)
+		warn_lbl.add_theme_color_override("font_color", Color(0.95, 0.30, 0.25, 1.0))
+		info_vb.add_child(warn_lbl)
+
+	# Right: Accept button
+	var btn := Button.new()
+	btn.text = "Accept"
+	btn.custom_minimum_size = Vector2(70, 32)
+	btn.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+	btn.add_theme_font_size_override("font_size", 11)
+	btn.add_theme_color_override("font_color", Color(0.5, 1.0, 0.6, 1.0))
+	btn.pressed.connect(func() -> void:
+		popup.queue_free()
+		_job_board_popup = null
+		_accept_job(job))
+	hb.add_child(btn)
+
+	return row_panel
+
+
+func _accept_job(job: Dictionary) -> void:
+	var nodes := _all_nodes()
+	var days: int  = job.days
+	var pwr: int   = _total_power()
+	var wages: int = CrewData.wage_for_trip(_crew.size(), days)
+
 	var star_map := StarMap.new()
-	var wages := CrewData.wage_for_trip(_crew.size(), days)
 	star_map.setup({
-		"days":           days,
-		"power":          pwr,
-		"node_count":     nodes.size(),
-		"ship_name":      ship_name,
-		"ship_nodes":     nodes,
-		"current_system": _current_system,
-		"room_textures":  _room_textures,
-		"crew":           _crew,
-		"wages":          wages,
+		"days":            days,
+		"power":           pwr,
+		"node_count":      nodes.size(),
+		"ship_name":       ship_name,
+		"ship_nodes":      nodes,
+		"current_system":  _current_system,
+		"destination_id":  job.destination_id,
+		"job_type":        job.job_type,
+		"job_pay_per_day": job.pay_per_day,
+		"room_textures":   _room_textures,
+		"crew":            _crew,
+		"wages":           wages,
 	})
 	add_child(star_map)
 	star_map.job_finished.connect(_on_job_finished)
 	_jobs_completed += 1
+
+
+func _estimate_at_risk_rooms(days: int, harsh: bool) -> Array:
+	## Returns array of "!XX" initials for rooms whose durability may hit 0.
+	var nodes := _all_nodes()
+	var pwr := _total_power()
+	var warnings: Array = []
+	for node in nodes:
+		var sn := node as ShipNode
+		if sn == null: continue
+		var def := RoomData.find(sn.def_id)
+		if def.is_empty(): continue
+
+		# Estimate daily wear (mirrors star_map.gd logic, simplified)
+		var wear := 1
+		match def.get("type", ""):
+			"Engines": wear = 2
+			"Power":   wear = 2
+		if harsh:
+			wear += 1
+		if pwr < 0:
+			wear += 1
+		# Crew reduction (best case, assigned matching crew)
+		for cm in _crew:
+			if cm.get("assigned_to", "") == sn.node_uid and cm.get("status", "") == "active":
+				var crew_type: String = CrewData.room_type_for_role(cm.get("role", ""))
+				if crew_type == def.get("type", ""):
+					wear = maxi(0, wear - 1)
+					break
+
+		var total_wear := wear * days
+		if sn.current_durability - total_wear <= 0:
+			# Build initials: "Warp Core" → "WC", "Ion Engine" → "IE"
+			var room_name: String = def.get("name", "?")
+			var initials := ""
+			for word in room_name.split(" "):
+				if not word.is_empty():
+					initials += word[0].to_upper()
+			warnings.append("!%s" % initials)
+	return warnings
 
 
 func _on_job_finished(result: Dictionary) -> void:

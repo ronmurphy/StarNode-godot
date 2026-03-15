@@ -1,0 +1,99 @@
+StarNode — Future Ideas
+========================
+
+IMPLEMENTED:
+- [x] Random Port Events (35% chance on arrival — stowaway, merchant, bar fight,
+      mysterious package, customs, refugee, black market tip, hull scrape,
+      crew bonding, old friend, bar rumor)
+
+TO DO:
+------
+
+1. REPUTATION SYSTEM
+   Two stats: "standing" (legit) and "notoriety" (criminal).
+   - Smuggling, bounty hunts, black market jobs increase notoriety
+   - Freight, escort, diplomatic jobs increase standing
+   - High standing: repair discounts, better crew in hire pool
+   - High notoriety: better illegal job pay, but pirate attacks and port fines
+   - Show in port header or ship summary
+   - Persisted in save file
+
+2. CARGO HOLD MECHANIC
+   Utility rooms tagged as cargo bays get capacity slots.
+   - Some jobs pay more if you have cargo space
+   - Buy goods cheap at one system, sell high at another
+   - SYSTEMS already have types (trade hub, mining belt, colony) that imply
+     price differences
+   - Creates a reason to build cargo rooms beyond adjacency filler
+
+3. CREW MORALE / BONDS
+   - Crew who survive dangerous missions together build loyalty (efficiency creep)
+   - Crew who never get shore leave slowly lose efficiency
+   - Crew on the same ship for many jobs gain a small "veteran" bonus
+   - Gives a reason to care about individuals beyond their stat number
+
+4. ROOM UPGRADES
+   Spend credits at port to upgrade a room:
+   - +25% durability cap for 50% of room's base cost
+   - Reduce power draw by 10% for 30% of room's base cost
+   - Visual indicator on upgraded rooms (star icon or border)
+   - Gives a money sink and reason to invest in existing ship
+
+5. SYSTEM DISCOVERY
+   - Start with only nearby systems visible on the job board
+   - Longer trips "reveal" new systems
+   - Stellar Cartography / Navicomputer utility rooms expand visible range
+   - Makes the galaxy feel like it's opening up over time
+   - Could tie into a "fog of war" on a galaxy map view
+
+6. DISTRESS CALLS DURING TRAVEL
+   Mid-voyage interactive event:
+   - Ship receives distress signal, travel pauses
+   - Choose: investigate (risk damage, chance of loot/crew/reputation) or ignore
+   - Ignoring could have a small morale hit
+   - Investigating could lead to mini-encounters (derelict ship, ambush, survivors)
+   - Adds player agency during the otherwise passive travel phase
+
+7. CREW PROMOTION SYSTEM
+   After X completed jobs, a crew member can be promoted:
+   - Engineer → Chief Engineer (reduces wear on ALL engine rooms)
+   - Officer → Commander (bonus payout on ALL jobs, not just adjacent)
+   - Security → Veteran (damage reduction applies ship-wide)
+   - Specialist → Expert (adjacent bonus doubled)
+   - Technician → Master Tech (power rooms generate 10% more)
+   - Creates attachment to long-serving crew, makes losses hurt
+
+8. GALAXY MAP VIEW
+   A 2D top-down or isometric view of the star systems:
+   - Shows discovered systems, current location, distances
+   - Could be accessible from the main ship builder screen
+   - Visual reference for planning routes and jobs
+   - Systems color-coded by type (trade hub, hazard, colony, etc.)
+
+9. SHIP LOG / JOURNAL
+   Persistent log of all voyages:
+   - Destinations visited, credits earned, crew lost
+   - Notable events (first time at a system, biggest payday, etc.)
+   - Accessible from main screen as a "Captain's Log" tab
+   - Adds narrative weight to the journey
+
+10. INSURANCE SYSTEM
+    Buy insurance at port for rooms or crew:
+    - Room insurance: if durability hits 0, auto-repair to 25% (one-time)
+    - Crew insurance: if crew member is lost, receive compensation credits
+    - Premium scales with room cost / crew efficiency
+    - Adds risk management decisions
+
+11. CONTRACTS / MULTI-LEG JOBS
+    Jobs that span multiple systems:
+    - "Deliver cargo from Sol → Vega Prime → Elysium" (3-leg route)
+    - Higher total payout but must complete all legs
+    - Failure on any leg forfeits remaining pay
+    - Creates longer-term planning and commitment
+
+12. FACTION SYSTEM
+    Different factions control different systems:
+    - Federation, Empire, Independents, Pirates, etc.
+    - Doing jobs for one faction improves relations, may anger rivals
+    - Faction standing unlocks unique rooms or crew at their ports
+    - Ties into reputation system naturally

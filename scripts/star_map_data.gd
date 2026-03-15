@@ -121,3 +121,80 @@ func build_path(origin_id: String, dest_id: String, days: int) -> Array[String]:
 
 func is_harsh(system_id: String) -> bool:
 	return HARSH_SYSTEMS.has(system_id)
+
+
+# ── Job board ────────────────────────────────────────────────────────────────
+
+const JOB_TYPES: Array = [
+	{ "tag": "Freight",            "desc": "Haul cargo containers to %s.",                      "pay_mult": 1.0  },
+	{ "tag": "Personnel Transfer", "desc": "Transport crew rotation to %s.",                    "pay_mult": 0.9  },
+	{ "tag": "Smuggling",          "desc": "Move undeclared goods to %s. No questions asked.",   "pay_mult": 1.4  },
+	{ "tag": "Survey",             "desc": "Chart stellar phenomena near %s.",                   "pay_mult": 0.85 },
+	{ "tag": "Medical Evac",       "desc": "Rush medical supplies to %s. Time-critical.",        "pay_mult": 1.1  },
+	{ "tag": "Salvage Run",        "desc": "Recover wreckage in the vicinity of %s.",            "pay_mult": 1.2  },
+	{ "tag": "Diplomatic Courier", "desc": "Deliver sealed documents to %s. Handle with care.",  "pay_mult": 0.95 },
+	{ "tag": "Escort",             "desc": "Escort a convoy bound for %s.",                      "pay_mult": 1.15 },
+	{ "tag": "Bounty Hunt",        "desc": "Track a fugitive last seen near %s.",                "pay_mult": 1.35 },
+	{ "tag": "Colony Supply",      "desc": "Deliver building materials to %s.",                  "pay_mult": 1.05 },
+]
+
+func generate_job_listings(current_id: String) -> Array:
+	## Returns 1–5 random job listings from the current system.
+	var current_sys := find_system(current_id)
+	if current_sys.is_empty():
+		current_sys = SYSTEMS[0]
+	var current_pos: Vector3 = current_sys.pos
+
+	# Gather all reachable destinations (exclude current)
+	var others: Array = []
+	for s in SYSTEMS:
+		if s.id == current_id:
+			continue
+		others.append(s)
+	others.shuffle()
+
+	var count := randi_range(2, mini(5, others.size()))
+	var listings: Array = []
+	var used_types: Array = []
+
+	for i in count:
+		var dest: Dictionary = others[i]
+		var dist: float = current_pos.distance_to(dest.pos)
+		var days: int = maxi(1, roundi(dist / UNITS_PER_DAY))
+
+		# Pick a job type (avoid repeats when possible)
+		var pool: Array = JOB_TYPES.duplicate()
+		pool.shuffle()
+		var jtype: Dictionary = pool[0]
+		for jt in pool:
+			if not used_types.has(jt.tag):
+				jtype = jt
+				break
+		used_types.append(jtype.tag)
+
+		# Pay per day scales with distance and job type, with some variance
+		var base_pay_per_day: int = roundi((45 + randi_range(0, 20)) * jtype.pay_mult)
+		# Longer/riskier trips pay a bit more per day
+		if days >= 10:
+			base_pay_per_day += 8
+		if days >= 20:
+			base_pay_per_day += 12
+		if is_harsh(dest.id):
+			base_pay_per_day += 15
+
+		listings.append({
+			"destination_id":   dest.id,
+			"destination_name": dest.name,
+			"destination_desc": dest.desc,
+			"days":             days,
+			"pay_per_day":      base_pay_per_day,
+			"total_pay":        base_pay_per_day * days,
+			"job_type":         jtype.tag,
+			"job_desc":         jtype.desc % dest.name,
+			"harsh":            is_harsh(dest.id),
+		})
+
+	# Sort by days (shortest first)
+	listings.sort_custom(func(a: Dictionary, b: Dictionary) -> bool:
+		return a.days < b.days)
+	return listings

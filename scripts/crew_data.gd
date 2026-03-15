@@ -9,9 +9,15 @@ const PORTRAITS: Array[String] = [
 	"res://assets/pictures/profiles/human_female.png",
 	"res://assets/pictures/profiles/alien_crystal.png",
 	"res://assets/pictures/profiles/alien_deepspace.png",
+	"res://assets/pictures/profiles/alien_fungal.png",
+	"res://assets/pictures/profiles/alien_gaseous.png",
+	"res://assets/pictures/profiles/alien_insectoid.png",
 	"res://assets/pictures/profiles/alien_luminar.png",
 	"res://assets/pictures/profiles/alien_reptilian.png",
+	"res://assets/pictures/profiles/alien_stone.png",
 	"res://assets/pictures/profiles/space_cat.png",
+	"res://assets/pictures/profiles/space_dog_golden.png",
+	"res://assets/pictures/profiles/space_dog_terrier.png",
 ]
 
 # ── Names ────────────────────────────────────────────────────────────────────
