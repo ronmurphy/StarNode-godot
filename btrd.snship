@@ -1,0 +1,50 @@
+{
+	"connections": [
+		{
+			"from": "node_3",
+			"from_port": 0,
+			"to": "node_1",
+			"to_port": 0
+		},
+		{
+			"from": "node_1",
+			"from_port": 0,
+			"to": "node_2",
+			"to_port": 0
+		}
+	],
+	"counter": 3,
+	"credits": 250,
+	"current_system": "sol",
+	"nodes": [
+		{
+			"def_id": "trek_bridge",
+			"durability": 80,
+			"name": "node_3",
+			"pos_x": 500.0,
+			"pos_y": 320.0,
+			"texture": "res://assets/pictures/textures/tex_vothaal_hull.png",
+			"uid": "node_3"
+		},
+		{
+			"def_id": "b5_fusion",
+			"durability": 100,
+			"name": "node_1",
+			"pos_x": 500.0,
+			"pos_y": 420.0,
+			"texture": "res://assets/pictures/textures/tex_heat_ceramic.png",
+			"uid": "node_1"
+		},
+		{
+			"def_id": "trek_impulse",
+			"durability": 90,
+			"name": "node_2",
+			"pos_x": 500.0,
+			"pos_y": 520.0,
+			"texture": "res://assets/pictures/textures/tex_carbon_composite.png",
+			"uid": "node_2"
+		}
+	],
+	"ship_name": "btrd",
+	"version": 1
+}

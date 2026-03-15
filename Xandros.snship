@@ -1,0 +1,50 @@
+{
+	"connections": [
+		{
+			"from": "node_2",
+			"from_port": 0,
+			"to": "node_1",
+			"to_port": 0
+		},
+		{
+			"from": "node_1",
+			"from_port": 0,
+			"to": "node_3",
+			"to_port": 0
+		}
+	],
+	"counter": 3,
+	"credits": 300,
+	"current_system": "sol",
+	"nodes": [
+		{
+			"def_id": "trek_warpcore",
+			"durability": 100,
+			"name": "node_1",
+			"pos_x": 620.0,
+			"pos_y": 180.0,
+			"texture": "res://assets/pictures/textures/tex_carbon_composite.png",
+			"uid": "node_1"
+		},
+		{
+			"def_id": "sw_ionengine",
+			"durability": 85,
+			"name": "node_2",
+			"pos_x": 620.0,
+			"pos_y": 280.0,
+			"texture": "res://assets/pictures/textures/tex_aged_iron.png",
+			"uid": "node_2"
+		},
+		{
+			"def_id": "b5_cic",
+			"durability": 75,
+			"name": "node_3",
+			"pos_x": 620.0,
+			"pos_y": 80.0,
+			"texture": "res://assets/pictures/textures/tex_vothaal_hull.png",
+			"uid": "node_3"
+		}
+	],
+	"ship_name": "Xandros",
+	"version": 1
+}

@@ -1,0 +1,176 @@
+{
+	"connections": [
+		{
+			"from": "node_4",
+			"from_port": 0,
+			"to": "node_3",
+			"to_port": 0
+		},
+		{
+			"from": "node_1",
+			"from_port": 0,
+			"to": "node_10",
+			"to_port": 0
+		},
+		{
+			"from": "node_8",
+			"from_port": 0,
+			"to": "node_11",
+			"to_port": 0
+		},
+		{
+			"from": "node_8",
+			"from_port": 0,
+			"to": "node_2",
+			"to_port": 0
+		},
+		{
+			"from": "node_8",
+			"from_port": 0,
+			"to": "node_7",
+			"to_port": 0
+		},
+		{
+			"from": "node_10",
+			"from_port": 0,
+			"to": "node_8",
+			"to_port": 0
+		},
+		{
+			"from": "node_9",
+			"from_port": 0,
+			"to": "node_1",
+			"to_port": 0
+		},
+		{
+			"from": "node_3",
+			"from_port": 0,
+			"to": "node_9",
+			"to_port": 0
+		},
+		{
+			"from": "node_9",
+			"from_port": 0,
+			"to": "node_5",
+			"to_port": 0
+		},
+		{
+			"from": "node_5",
+			"from_port": 0,
+			"to": "node_6",
+			"to_port": 0
+		},
+		{
+			"from": "node_6",
+			"from_port": 0,
+			"to": "node_8",
+			"to_port": 0
+		}
+	],
+	"counter": 11,
+	"credits": 6058,
+	"current_system": "belt_1",
+	"nodes": [
+		{
+			"def_id": "uni_hull_primary",
+			"durability": 106,
+			"name": "node_4",
+			"pos_x": 660.0,
+			"pos_y": -800.0,
+			"texture": "res://assets/pictures/textures/tex_heat_ceramic.png",
+			"uid": "node_4"
+		},
+		{
+			"def_id": "b5_cic",
+			"durability": 61,
+			"name": "node_3",
+			"pos_x": 660.0,
+			"pos_y": -700.0,
+			"texture": "res://assets/pictures/textures/tex_luminar_hull.png",
+			"uid": "node_3"
+		},
+		{
+			"def_id": "uni_junction",
+			"durability": 86,
+			"name": "node_9",
+			"pos_x": 560.0,
+			"pos_y": -600.0,
+			"texture": "res://assets/pictures/textures/tex_riveted_steel.png",
+			"uid": "node_9"
+		},
+		{
+			"def_id": "uni_junction",
+			"durability": 86,
+			"name": "node_8",
+			"pos_x": 760.0,
+			"pos_y": -600.0,
+			"texture": "res://assets/pictures/textures/tex_carbon_composite.png",
+			"uid": "node_8"
+		},
+		{
+			"def_id": "uni_crew",
+			"durability": 56,
+			"name": "node_7",
+			"pos_x": 660.0,
+			"pos_y": -500.0,
+			"texture": "res://assets/pictures/textures/tex_luminar_hull.png",
+			"uid": "node_7"
+		},
+		{
+			"def_id": "sw_navicomp",
+			"durability": 51,
+			"name": "node_5",
+			"pos_x": 660.0,
+			"pos_y": -400.0,
+			"texture": "res://assets/pictures/textures/tex_krysthari_hull.png",
+			"uid": "node_5"
+		},
+		{
+			"def_id": "b5_medlab",
+			"durability": 51,
+			"name": "node_6",
+			"pos_x": 660.0,
+			"pos_y": -300.0,
+			"texture": "res://assets/pictures/textures/tex_energy_conduit_mesh.png",
+			"uid": "node_6"
+		},
+		{
+			"def_id": "bsg_tylium",
+			"durability": 79,
+			"name": "node_1",
+			"pos_x": 560.0,
+			"pos_y": -200.0,
+			"texture": "res://assets/pictures/textures/tex_vothaal_hull.png",
+			"uid": "node_1"
+		},
+		{
+			"def_id": "dune_spice",
+			"durability": 69,
+			"name": "node_10",
+			"pos_x": 760.0,
+			"pos_y": -200.0,
+			"texture": "res://assets/pictures/textures/tex_aged_iron.png",
+			"uid": "node_10"
+		},
+		{
+			"def_id": "sw_ionengine",
+			"durability": 64,
+			"name": "node_11",
+			"pos_x": 580.0,
+			"pos_y": -100.0,
+			"texture": "res://assets/pictures/textures/tex_varak_hull.png",
+			"uid": "node_11"
+		},
+		{
+			"def_id": "bsg_sublight",
+			"durability": 69,
+			"name": "node_2",
+			"pos_x": 740.0,
+			"pos_y": -100.0,
+			"texture": "res://assets/pictures/textures/tex_heat_ceramic.png",
+			"uid": "node_2"
+		}
+	],
+	"ship_name": "Durnst",
+	"version": 1
+}

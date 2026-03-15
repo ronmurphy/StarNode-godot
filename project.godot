@@ -1,0 +1,35 @@
+; Engine configuration file.
+; It's best edited using the editor UI and not directly,
+; since the parameters that go here are not all obvious.
+;
+; Format:
+;   [section] ; section goes between []
+;   param=value ; assign values to parameters
+
+config_version=5
+
+[application]
+
+config/name="StarNode"
+config/features=PackedStringArray("4.6", "Forward Plus")
+config/icon="res://icon.svg"
+run/main_scene="res://scenes/main.tscn"
+
+[autoload]
+
+RoomData="*res://scripts/room_data.gd"
+StarMapData="*res://scripts/star_map_data.gd"
+
+[display]
+
+window/size/viewport_width=1280
+window/size/viewport_height=800
+window/size/initial_position_type=2
+
+[physics]
+
+3d/physics_engine="Jolt Physics"
+
+[rendering]
+
+rendering_device/driver.windows="d3d12"
