@@ -38,6 +38,7 @@ var _events:          Array      = []  # pre-rolled: {at, type, ...}
 var _events_done:     Array      = []  # indices already fired
 var _n_cinematic_segs: int       = 0   # first N waypoint-segments are pre-travel cinematic
 var _sys_nodes:        Dictionary = {}  # system_id → Node3D (for proximity fade)
+var _adjacencies:      Dictionary = {}  # node_uid → [{uid, type}] — hull adjacency map
 
 # ── Camera phases: 0=departure, 1=stationary flyby at midpoint, 2=chase ──
 var _cam_phase:     int     = 0
@@ -271,10 +272,10 @@ func _build_from_layout(vis: Node3D, ship_nodes: Array, textures: Dictionary) ->
 	for node in ship_nodes:
 		var sn := node as ShipNode
 		if sn == null: continue
-		min_x = minf(min_x, sn.position_offset.x)
-		max_x = maxf(max_x, sn.position_offset.x)
-		min_y = minf(min_y, sn.position_offset.y)
-		max_y = maxf(max_y, sn.position_offset.y)
+		min_x = minf(min_x, sn.hull_pos.x)
+		max_x = maxf(max_x, sn.hull_pos.x)
+		min_y = minf(min_y, sn.hull_pos.y)
+		max_y = maxf(max_y, sn.hull_pos.y)
 
 	var center   := Vector2((min_x + max_x) * 0.5, (min_y + max_y) * 0.5)
 	var extent   := maxf(max_x - min_x, max_y - min_y)
@@ -293,7 +294,7 @@ func _build_from_layout(vis: Node3D, ship_nodes: Array, textures: Dictionary) ->
 		var def := RoomData.find(sn.def_id)
 		if def.is_empty(): continue
 
-		var rel      := sn.position_offset - center
+		var rel      := sn.hull_pos - center
 		var room_pos := Vector3(rel.x * px_scale, 0.0, rel.y * px_scale)
 		max_z = maxf(max_z, room_pos.z)
 
@@ -342,6 +343,17 @@ func _build_from_layout(vis: Node3D, ship_nodes: Array, textures: Dictionary) ->
 		lbl.billboard     = BaseMaterial3D.BILLBOARD_ENABLED
 		lbl.no_depth_test = false
 		room_container.add_child(lbl)
+
+	# ── Compute hull adjacency map for gameplay bonuses ──────────────────────
+	_adjacencies = ShipBlueprint.compute_adjacencies(ship_nodes)
+	if not _adjacencies.is_empty():
+		var total_pairs := 0
+		for uid in _adjacencies:
+			total_pairs += (_adjacencies[uid] as Array).size()
+		total_pairs /= 2  # each pair counted twice
+		if total_pairs > 0:
+			_log("[color=#55cc77]⬡ Hull adjacency: %d room pair%s detected[/color]" % [
+				total_pairs, "s" if total_pairs != 1 else ""])
 
 	return maxf(max_z, 0.0) + 1.0   # engine glow just behind rearmost room
 
@@ -835,6 +847,10 @@ func _build_hud() -> void:
 	_log_box.add_theme_font_size_override("normal_font_size", 11)
 	bot_panel.add_child(_log_box)
 
+	# Flush any log lines that were queued before the HUD was built
+	for line in _log_lines:
+		_log_box.append_text(line + "\n")
+
 
 func _hlabel(text: String, size: int, color: Color) -> Label:
 	var lbl := Label.new()
@@ -859,7 +875,8 @@ func _add_sp(parent: Control, w: int) -> void:
 
 func _log(msg: String) -> void:
 	_log_lines.append(msg)
-	_log_box.append_text(msg + "\n")
+	if _log_box != null:
+		_log_box.append_text(msg + "\n")
 
 
 # ── Job initialization ────────────────────────────────────────────────────────
@@ -1159,8 +1176,38 @@ func _update_system_fades(delta: float) -> void:
 func _apply_daily_wear() -> void:
 	## Passive hull wear each in-game day. Engines & Power take more.
 	## Harsh destination systems add extra wear.
+	## Crew assigned to matching rooms reduce wear.
+	## Adjacency bonuses: Engines adj Power = -1, Utility adj any = -1 on neighbor.
 	var dest_id: String = _path_ids[-1] if not _path_ids.is_empty() else ""
 	var harsh := StarMapData.is_harsh(dest_id)
+	var crew: Array = _params.get("crew", [])
+
+	# ── Pre-compute adjacency wear reductions ────────────────────────────────
+	# adj_wear_bonus[node_uid] = total adjacency-based wear reduction (capped at 2)
+	var adj_wear_bonus: Dictionary = {}
+	for node in _ship_nodes_ref:
+		var sn := node as ShipNode
+		if sn == null: continue
+		var def := RoomData.find(sn.def_id)
+		if def.is_empty(): continue
+		var rtype: String = def.get("type", "")
+		var neighbors: Array = _adjacencies.get(sn.node_uid, [])
+
+		# Engines adjacent to Power → Engines gets -1 wear
+		if rtype == "Engines":
+			for adj in neighbors:
+				if (adj as Dictionary).get("type", "") == "Power":
+					adj_wear_bonus[sn.node_uid] = mini(
+						(adj_wear_bonus.get(sn.node_uid, 0) as int) + 1, 2)
+					break  # only once per Power neighbor
+
+		# Utility adjacent to any room → that neighbor gets -1 wear
+		if rtype == "Utility":
+			for adj in neighbors:
+				var adj_uid: String = (adj as Dictionary).get("uid", "")
+				if not adj_uid.is_empty():
+					adj_wear_bonus[adj_uid] = mini(
+						(adj_wear_bonus.get(adj_uid, 0) as int) + 1, 2)
 
 	for node in _ship_nodes_ref:
 		var ship_node := node as ShipNode
@@ -1176,10 +1223,40 @@ func _apply_daily_wear() -> void:
 			wear += 1
 		if _params.get("power", 0) < 0:
 			wear += 1
+
+		# Crew reduction: matching role assigned to this room reduces wear
+		var crew_reduced := false
+		for cm in crew:
+			if cm.get("assigned_to", "") == ship_node.node_uid and cm.get("status", "") == "active":
+				var crew_type: String = CrewData.room_type_for_role(cm.get("role", ""))
+				if crew_type == def.get("type", "") and cm.get("efficiency", 0.0) >= 0.5:
+					wear = maxi(0, wear - 1)
+					crew_reduced = true
+					break
+
+		# Adjacency reduction (capped at 2 total from all adjacency sources)
+		var adj_red: int = adj_wear_bonus.get(ship_node.node_uid, 0) as int
+		if adj_red > 0:
+			wear = maxi(0, wear - adj_red)
+
 		ship_node.apply_damage(wear)
+
+		if crew_reduced and wear > 0 and _days_elapsed == 1:
+			_log("[color=#44aaff]🔧 %s reduces wear on %s[/color]" % [
+				_find_crew_name(crew, ship_node.node_uid), ship_node.title])
+
+		if adj_red > 0 and _days_elapsed == 1:
+			_log("[color=#55cc77]⬡ Adjacency: -%d wear on %s[/color]" % [adj_red, ship_node.title])
 
 		if ship_node.current_durability == 0:
 			_log("[color=#ff3311]⚠ CRITICAL: %s has failed![/color]" % ship_node.title)
+
+
+func _find_crew_name(crew: Array, node_uid: String) -> String:
+	for cm in crew:
+		if cm.get("assigned_to", "") == node_uid:
+			return cm.get("name", "Crew")
+	return "Crew"
 
 
 func _check_events() -> void:
@@ -1200,22 +1277,99 @@ func _check_events() -> void:
 
 
 func _fire_event(ev: Dictionary) -> void:
+	var crew: Array = _params.get("crew", [])
+
 	match ev.type:
 		"damage":
 			var idx: int = ev.get("target_idx", 0)
 			if idx < _ship_nodes_ref.size():
 				var target := _ship_nodes_ref[idx] as ShipNode
 				var dmg:    int = ev.get("amount", 10)
+
+				# Security crew in Tactical rooms reduce combat damage
+				var sec_eff := _best_crew_efficiency(crew, "Security", "Tactical")
+				if sec_eff > 0.0:
+					var reduction := int(float(dmg) * sec_eff * 0.3)
+					dmg = maxi(1, dmg - reduction)
+					_log("[color=#44aaff]🛡 Security crew mitigated %d damage[/color]" % reduction)
+
+				# Adjacency bonus: Tactical adjacent to Command → extra 10% dmg reduction
+				# Tactical adjacent to Power → extra 5% reduction
+				var adj_dmg_pct := 0.0
+				for node in _ship_nodes_ref:
+					var sn := node as ShipNode
+					if sn == null: continue
+					var sn_def := RoomData.find(sn.def_id)
+					if sn_def.is_empty(): continue
+					if sn_def.get("type", "") != "Tactical": continue
+					var neighbors: Array = _adjacencies.get(sn.node_uid, [])
+					for adj in neighbors:
+						var adj_type: String = (adj as Dictionary).get("type", "")
+						if adj_type == "Command":
+							adj_dmg_pct += 0.10
+						elif adj_type == "Power":
+							adj_dmg_pct += 0.05
+				adj_dmg_pct = minf(adj_dmg_pct, 0.25)  # cap at 25%
+				if adj_dmg_pct > 0.0:
+					var adj_red := int(float(dmg) * adj_dmg_pct)
+					if adj_red > 0:
+						dmg = maxi(1, dmg - adj_red)
+						_log("[color=#55cc77]⬡ Hull synergy: Tactical adjacency reduced %d damage[/color]" % adj_red)
+
 				target.apply_damage(dmg)
 				_earned -= randi_range(50, 180)
 				_earned  = maxi(0, _earned)
 				_log("[color=#ff5533]⚠ Combat! -%d dur to [b]%s[/b].[/color]" % [dmg, target.title])
 		"bonus":
 			var amt: int = ev.get("amount", 100)
+
+			# Officer crew in Command rooms boost bonus payouts
+			var off_eff := _best_crew_efficiency(crew, "Officer", "Command")
+			if off_eff > 0.0:
+				var bonus_extra := int(float(amt) * off_eff * 0.2)
+				amt += bonus_extra
+				_log("[color=#44aaff]📋 Officer negotiated +%d cr bonus[/color]" % bonus_extra)
+
+			# Adjacency bonus: Command adjacent to any room → +5% payout per neighbor (max +15%)
+			var cmd_adj_count := 0
+			for node in _ship_nodes_ref:
+				var sn := node as ShipNode
+				if sn == null: continue
+				var sn_def := RoomData.find(sn.def_id)
+				if sn_def.is_empty(): continue
+				if sn_def.get("type", "") == "Command":
+					cmd_adj_count += (_adjacencies.get(sn.node_uid, []) as Array).size()
+			cmd_adj_count = mini(cmd_adj_count, 3)  # cap at 3 neighbors = +15%
+			if cmd_adj_count > 0:
+				var adj_bonus := int(float(amt) * 0.05 * float(cmd_adj_count))
+				if adj_bonus > 0:
+					amt += adj_bonus
+					_log("[color=#55cc77]⬡ Hull synergy: Command adjacency +%d cr[/color]" % adj_bonus)
+
 			_earned += amt
 			_log("[color=#44ee88]✔ %s — +%d cr[/color]" % [ev.get("msg", "Bonus"), amt])
 		"routine":
 			_log("[color=#556677]  Routine transit.[/color]")
+
+
+func _best_crew_efficiency(crew: Array, role: String, room_type: String) -> float:
+	## Find the best efficiency among crew of the given role assigned to matching rooms.
+	var best := 0.0
+	for cm in crew:
+		if cm.get("role", "") != role or cm.get("status", "") != "active":
+			continue
+		var assigned: String = cm.get("assigned_to", "")
+		if assigned.is_empty():
+			continue
+		# Check the assigned room type
+		for node in _ship_nodes_ref:
+			var sn := node as ShipNode
+			if sn != null and sn.node_uid == assigned:
+				var def := RoomData.find(sn.def_id)
+				if not def.is_empty() and def.get("type", "") == room_type:
+					best = maxf(best, cm.get("efficiency", 0.0))
+				break
+	return best
 
 
 func _finish_travel() -> void:
@@ -1230,6 +1384,10 @@ func _finish_travel() -> void:
 
 	var t := create_tween()
 	t.tween_interval(2.8)
+	var wages: int = _params.get("wages", 0)
+	if wages > 0:
+		_log("[color=#ff8844]Crew wages: -%d cr[/color]" % wages)
+
 	t.tween_callback(func() -> void:
 		job_finished.emit({
 			"earned":         _earned,
@@ -1237,6 +1395,7 @@ func _finish_travel() -> void:
 			"destination":    _wp_names[-1],
 			"destination_id": _path_ids[-1] if not _path_ids.is_empty() else "sol",
 			"days":           days,
+			"wages":          wages,
 		})
 		queue_free()
 	)

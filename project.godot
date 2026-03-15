@@ -19,6 +19,7 @@ run/main_scene="res://scenes/main.tscn"
 
 RoomData="*res://scripts/room_data.gd"
 StarMapData="*res://scripts/star_map_data.gd"
+CrewData="*res://scripts/crew_data.gd"
 
 [display]
 

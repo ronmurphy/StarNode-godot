@@ -1,0 +1,100 @@
+{
+	"connections": [
+		{
+			"from": "node_1",
+			"from_port": 0,
+			"to": "node_2",
+			"to_port": 0
+		},
+		{
+			"from": "node_3",
+			"from_port": 0,
+			"to": "node_1",
+			"to_port": 0
+		}
+	],
+	"counter": 3,
+	"credits": 2088,
+	"crew": [
+		{
+			"assigned_to": "node_1",
+			"efficiency": 0.7,
+			"id": "crew_1",
+			"name": "Rook Voss",
+			"portrait": "res://assets/pictures/profiles/human_male.png",
+			"role": "Technician",
+			"shore_leave_days": 0.0,
+			"status": "active"
+		},
+		{
+			"assigned_to": "",
+			"efficiency": 0.52,
+			"id": "crew_2",
+			"name": "Yara Drell",
+			"portrait": "res://assets/pictures/profiles/human_male.png",
+			"role": "Engineer",
+			"shore_leave_days": 0,
+			"status": "active"
+		},
+		{
+			"assigned_to": "node_3",
+			"efficiency": 0.61,
+			"id": "crew_3",
+			"name": "Petra Vael",
+			"portrait": "res://assets/pictures/profiles/space_cat.png",
+			"role": "Officer",
+			"shore_leave_days": 0.0,
+			"status": "active"
+		},
+		{
+			"assigned_to": "node_2",
+			"efficiency": 0.86,
+			"id": "crew_4",
+			"name": "Xander Kai",
+			"portrait": "res://assets/pictures/profiles/alien_deepspace.png",
+			"role": "Engineer",
+			"shore_leave_days": 0.0,
+			"status": "active"
+		}
+	],
+	"crew_counter": 4,
+	"current_system": "vega",
+	"jobs_completed": 3,
+	"nodes": [
+		{
+			"def_id": "sw_bridge",
+			"durability": 75,
+			"hull_px": 0.816326498985291,
+			"hull_py": -20.4081573486328,
+			"name": "node_3",
+			"pos_x": 440.0,
+			"pos_y": 420.0,
+			"texture": "res://assets/pictures/textures/tex_vothaal_hull.png",
+			"uid": "node_3"
+		},
+		{
+			"def_id": "trek_warpcore",
+			"durability": 95,
+			"hull_px": 0.000000119209289550781,
+			"hull_py": 69.3877563476563,
+			"name": "node_1",
+			"pos_x": 700.0,
+			"pos_y": 420.0,
+			"texture": "res://assets/pictures/textures/tex_heat_ceramic.png",
+			"uid": "node_1"
+		},
+		{
+			"def_id": "sw_ionengine",
+			"durability": 80,
+			"hull_px": -0.816326379776001,
+			"hull_py": 23.6734619140625,
+			"name": "node_2",
+			"pos_x": 960.0,
+			"pos_y": 420.0,
+			"texture": "res://assets/pictures/textures/tex_energy_conduit_mesh.png",
+			"uid": "node_2"
+		}
+	],
+	"ship_name": "Devos",
+	"version": 1
+}

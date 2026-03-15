@@ -8,6 +8,7 @@ var txt_ship_name: LineEdit
 var lbl_credits: Label
 var lbl_power: Label
 var lbl_location: Label
+var lbl_crew: Label
 var lst_rooms: ItemList
 var lbl_room_detail: RichTextLabel
 var cb_universe: OptionButton
@@ -29,6 +30,9 @@ var _filtered_rooms: Array = []
 var _current_system: String = "sol"   # tracked across jobs
 var _room_textures:  Dictionary = {}   # node_uid → res:// texture path
 var _last_save_path: String    = ""   # most recent save/load path for auto-save
+var _crew:           Array     = []   # Array of crew Dictionaries
+var _crew_counter:   int       = 0    # for unique crew IDs
+var _jobs_completed: int       = 0    # 0 = fresh ship (starter crew auto-assigned)
 
 const SAVE_VERSION: int = 1
 
@@ -132,11 +136,24 @@ func _build_header(parent: Control) -> void:
 
 	lbl_power = _make_label("Power: 0", 13, CLR_PWR_POS)
 	lbl_power.custom_minimum_size.x = 110
+	lbl_power.mouse_filter = Control.MOUSE_FILTER_STOP
+	lbl_power.gui_input.connect(_on_power_click)
+	lbl_power.mouse_default_cursor_shape = Control.CURSOR_POINTING_HAND
 	hbox.add_child(lbl_power)
 
 	lbl_location = _make_label("📍 Sol", 11, CLR_DIM)
 	lbl_location.custom_minimum_size.x = 115
+	lbl_location.mouse_filter = Control.MOUSE_FILTER_STOP
+	lbl_location.gui_input.connect(_on_location_click)
+	lbl_location.mouse_default_cursor_shape = Control.CURSOR_POINTING_HAND
 	hbox.add_child(lbl_location)
+
+	lbl_crew = _make_label("Crew: 0", 11, Color(0.65, 0.80, 0.95, 1.0))
+	lbl_crew.custom_minimum_size.x = 70
+	lbl_crew.mouse_filter = Control.MOUSE_FILTER_STOP
+	lbl_crew.gui_input.connect(_on_crew_click)
+	lbl_crew.mouse_default_cursor_shape = Control.CURSOR_POINTING_HAND
+	hbox.add_child(lbl_crew)
 
 	_add_vsep(hbox)
 
@@ -274,11 +291,6 @@ func _build_sidebar(parent: Control) -> void:
 	btn_clear.add_theme_color_override("font_color", Color(1.0, 0.4, 0.4, 1.0))
 	vbox.add_child(btn_clear)
 
-	# Repair button
-	var btn_repair := _make_btn("Repair All (50 cr/node)", -1, _on_repair_all)
-	btn_repair.add_theme_color_override("font_color", Color(0.5, 1.0, 0.7, 1.0))
-	vbox.add_child(btn_repair)
-
 	# Help text
 	var help := _make_label(
 		"Drag ports to connect  •  Delete key removes selected\nRight-click + drag to pan  •  Scroll to zoom", 9, CLR_DIM)
@@ -366,10 +378,37 @@ func _on_add_room() -> void:
 	var cy: float = -graph_edit.scroll_offset.y + graph_edit.size.y * 0.5 - 40.0
 	ship_node.position_offset = Vector2(cx + randf_range(-80, 80), cy + randf_range(-60, 60))
 
+	# Auto-place in hull layout (grid pattern, decoupled from GraphEdit)
+	ship_node.hull_pos = _next_hull_slot()
+
 	credits -= def.cost
 	# Assign a random hull texture (persists in save file)
 	_room_textures[uid] = ROOM_TEXTURES[randi() % ROOM_TEXTURES.size()]
+
+	# Fresh ship: auto-assign one starter crew member per room
+	if _jobs_completed == 0:
+		_crew_counter += 1
+		var cm := CrewData.generate_crew(def.type, _crew_counter)
+		cm.assigned_to = uid
+		_crew.append(cm)
+
 	_update_header()
+
+
+func _next_hull_slot() -> Vector2:
+	## Find next available grid position for a new room in hull layout.
+	## Lays out rooms in a grid: 4 columns, ~50px spacing.
+	var existing: Array[Vector2] = []
+	for child in graph_edit.get_children():
+		var sn := child as ShipNode
+		if sn != null and sn.hull_pos != Vector2.ZERO:
+			existing.append(sn.hull_pos)
+	var cols := 4
+	var spacing := 50.0
+	var idx := existing.size()   # this room's index (0-based)
+	var col := idx % cols
+	var row := idx / cols
+	return Vector2(col * spacing, row * spacing)
 
 
 # ── Graph connections ─────────────────────────────────────────────────────────
@@ -429,6 +468,8 @@ func _update_header() -> void:
 	lbl_power.add_theme_color_override("font_color", CLR_PWR_POS if pwr >= 0 else CLR_PWR_NEG)
 	var sys := StarMapData.find_system(_current_system)
 	lbl_location.text = "📍 %s" % (sys.get("name", "Unknown") if not sys.is_empty() else "Unknown")
+	if lbl_crew != null:
+		lbl_crew.text = "Crew: %d" % _crew.size()
 
 
 func _total_power() -> int:
@@ -451,6 +492,145 @@ func _all_nodes() -> Array:
 	return result
 
 
+# ── Header label clicks ──────────────────────────────────────────────────────
+func _on_location_click(event: InputEvent) -> void:
+	if event is InputEventMouseButton and event.pressed and event.button_index == MOUSE_BUTTON_LEFT:
+		if _jobs_completed > 0:
+			_open_port_menu("summary")
+		else:
+			_toast("Complete a job first to access the port.")
+
+
+func _on_crew_click(event: InputEvent) -> void:
+	if event is InputEventMouseButton and event.pressed and event.button_index == MOUSE_BUTTON_LEFT:
+		if _jobs_completed > 0:
+			_open_port_menu("crew")
+		else:
+			_toast("Complete a job first to manage crew.")
+
+
+func _on_power_click(event: InputEvent) -> void:
+	if event is InputEventMouseButton and event.pressed and event.button_index == MOUSE_BUTTON_LEFT:
+		_show_power_breakdown()
+
+
+func _open_port_menu(tab: String = "summary") -> void:
+	## Open the port menu from the node screen (not after a job).
+	var port := PortMenu.new()
+	port.setup({
+		"credits":        credits,
+		"crew":           _crew,
+		"crew_counter":   _crew_counter,
+		"current_system": _current_system,
+		"result":         {},
+		"wages":          0,
+		"ship_nodes":     _all_nodes(),
+		"room_textures":  _room_textures,
+		"start_tab":      tab,
+	})
+	add_child(port)
+	port.port_closed.connect(_on_port_closed)
+
+
+func _show_power_breakdown() -> void:
+	## Show an itemized popup of power production/consumption per room.
+	var popup := PanelContainer.new()
+	var style := StyleBoxFlat.new()
+	style.bg_color = Color(0.05, 0.07, 0.12, 0.96)
+	style.border_color = CLR_ACCENT
+	style.set_border_width_all(2)
+	style.set_corner_radius_all(6)
+	style.set_content_margin_all(14)
+	popup.add_theme_stylebox_override("panel", style)
+	popup.z_index = 55
+
+	var vb := VBoxContainer.new()
+	vb.add_theme_constant_override("separation", 4)
+	popup.add_child(vb)
+
+	var title := Label.new()
+	title.text = "POWER BREAKDOWN"
+	title.add_theme_font_size_override("font_size", 14)
+	title.add_theme_color_override("font_color", CLR_ACCENT)
+	vb.add_child(title)
+
+	var total_gen := 0
+	var total_use := 0
+	var nodes := _all_nodes()
+
+	if nodes.is_empty():
+		var lbl := Label.new()
+		lbl.text = "No rooms installed."
+		lbl.add_theme_font_size_override("font_size", 11)
+		lbl.add_theme_color_override("font_color", CLR_DIM)
+		vb.add_child(lbl)
+	else:
+		# Generators first
+		var generators: Array = []
+		var consumers: Array = []
+		for n in nodes:
+			var sn := n as ShipNode
+			var def := RoomData.find(sn.def_id)
+			if def.is_empty(): continue
+			if def.power > 0:
+				generators.append(def)
+				total_gen += def.power
+			elif def.power < 0:
+				consumers.append(def)
+				total_use += def.power
+
+		if not generators.is_empty():
+			var hdr := Label.new()
+			hdr.text = "GENERATORS"
+			hdr.add_theme_font_size_override("font_size", 11)
+			hdr.add_theme_color_override("font_color", CLR_PWR_POS)
+			vb.add_child(hdr)
+			for def in generators:
+				var row := Label.new()
+				row.text = "  %s: +%d PWR" % [def.name, def.power]
+				row.add_theme_font_size_override("font_size", 10)
+				row.add_theme_color_override("font_color", CLR_PWR_POS)
+				vb.add_child(row)
+
+		if not consumers.is_empty():
+			var hdr := Label.new()
+			hdr.text = "CONSUMERS"
+			hdr.add_theme_font_size_override("font_size", 11)
+			hdr.add_theme_color_override("font_color", CLR_PWR_NEG)
+			vb.add_child(hdr)
+			for def in consumers:
+				var row := Label.new()
+				row.text = "  %s: %d PWR" % [def.name, def.power]
+				row.add_theme_font_size_override("font_size", 10)
+				row.add_theme_color_override("font_color", CLR_PWR_NEG)
+				vb.add_child(row)
+
+		# Summary
+		var sep := HSeparator.new()
+		vb.add_child(sep)
+		var net := total_gen + total_use
+		var net_lbl := Label.new()
+		net_lbl.text = "Generated: +%d  |  Used: %d  |  Net: %s%d" % [
+			total_gen, total_use, "+" if net >= 0 else "", net]
+		net_lbl.add_theme_font_size_override("font_size", 12)
+		net_lbl.add_theme_color_override("font_color", CLR_GOLD)
+		vb.add_child(net_lbl)
+
+	# Close button
+	var btn := Button.new()
+	btn.text = "Close"
+	btn.add_theme_font_size_override("font_size", 11)
+	btn.pressed.connect(func() -> void: popup.queue_free())
+	vb.add_child(btn)
+
+	add_child(popup)
+	popup.set_anchors_and_offsets_preset(Control.PRESET_CENTER)
+	popup.offset_left = -180
+	popup.offset_right = 180
+	popup.offset_top = -150
+	popup.offset_bottom = 150
+
+
 # ── Mode buttons ──────────────────────────────────────────────────────────────
 func _on_toggle_delete_mode() -> void:
 	_delete_mode = not _delete_mode
@@ -462,6 +642,17 @@ func _on_toggle_hull_edit() -> void:
 	btn_hull_edit.text = "Hull Edit: %s" % ("ON — drag shapes in preview" if _hull_edit_mode else "OFF")
 	_blueprint_ctrl.edit_mode = _hull_edit_mode
 	_blueprint_ctrl.mouse_filter = Control.MOUSE_FILTER_STOP if _hull_edit_mode else Control.MOUSE_FILTER_IGNORE
+	# 2× preview size when editing
+	if _hull_edit_mode:
+		_blueprint_ctrl.offset_left   =  10.0
+		_blueprint_ctrl.offset_right  = 374.0   # 364 wide
+		_blueprint_ctrl.offset_top    = -294.0   # 284 tall
+		_blueprint_ctrl.offset_bottom =  -10.0
+	else:
+		_blueprint_ctrl.offset_left   =  10.0
+		_blueprint_ctrl.offset_right  = 192.0   # 182 wide
+		_blueprint_ctrl.offset_top    = -152.0   # 142 tall
+		_blueprint_ctrl.offset_bottom =  -10.0
 
 
 func _on_clear_all() -> void:
@@ -506,6 +697,9 @@ func _on_new_ship() -> void:
 	_node_counter   = 0
 	_current_system = "sol"
 	_room_textures.clear()
+	_crew.clear()
+	_crew_counter   = 0
+	_jobs_completed = 0
 	txt_ship_name.text = ship_name
 	_update_header()
 
@@ -550,8 +744,8 @@ func _save_to_file(path: String) -> void:
 			"pos_y":    ship_node.position_offset.y,
 			"durability": ship_node.current_durability,
 		"texture":    _room_textures.get(ship_node.node_uid, ""),
-		"hull_ox":    ship_node.hull_offset.x,
-		"hull_oy":    ship_node.hull_offset.y,
+		"hull_px":    ship_node.hull_pos.x,
+		"hull_py":    ship_node.hull_pos.y,
 		})
 
 	var conn_data: Array = []
@@ -569,6 +763,9 @@ func _save_to_file(path: String) -> void:
 		"credits":        credits,
 		"counter":        _node_counter,
 		"current_system": _current_system,
+		"crew":           _crew,
+		"crew_counter":   _crew_counter,
+		"jobs_completed": _jobs_completed,
 		"nodes":          nodes_data,
 		"connections":    conn_data,
 	}
@@ -606,6 +803,9 @@ func _load_from_file(path: String) -> void:
 	credits         = data.get("credits",        2000)
 	_node_counter   = data.get("counter",        0)
 	_current_system = data.get("current_system", "sol")
+	_crew           = data.get("crew",           [])
+	_crew_counter   = data.get("crew_counter",   0)
+	_jobs_completed = data.get("jobs_completed", 0)
 	txt_ship_name.text = ship_name
 
 	# Restore nodes
@@ -621,7 +821,13 @@ func _load_from_file(path: String) -> void:
 		ship_node.setup(def, nd.uid)
 		ship_node.position_offset = Vector2(nd.pos_x, nd.pos_y)
 		ship_node.current_durability = nd.durability
-		ship_node.hull_offset = Vector2(nd.get("hull_ox", 0.0), nd.get("hull_oy", 0.0))
+		# Hull position migration: new key → old offset key → fallback to GraphEdit pos
+		if nd.has("hull_px"):
+			ship_node.hull_pos = Vector2(nd.hull_px, nd.hull_py)
+		elif nd.has("hull_ox"):
+			ship_node.hull_pos = Vector2(nd.pos_x + nd.hull_ox, nd.pos_y + nd.hull_oy)
+		else:
+			ship_node.hull_pos = Vector2(nd.pos_x, nd.pos_y)
 		ship_node._refresh_dur_bar()
 		var tex_path: String = nd.get("texture", "")
 		if not tex_path.is_empty():
@@ -658,6 +864,7 @@ func _on_run_job() -> void:
 
 	# Launch the 3D star map — it handles all travel, damage, and events
 	var star_map := StarMap.new()
+	var wages := CrewData.wage_for_trip(_crew.size(), days)
 	star_map.setup({
 		"days":           days,
 		"power":          pwr,
@@ -666,19 +873,50 @@ func _on_run_job() -> void:
 		"ship_nodes":     nodes,
 		"current_system": _current_system,
 		"room_textures":  _room_textures,
+		"crew":           _crew,
+		"wages":          wages,
 	})
 	add_child(star_map)
 	star_map.job_finished.connect(_on_job_finished)
+	_jobs_completed += 1
 
 
 func _on_job_finished(result: Dictionary) -> void:
 	var earned: int = result.get("earned", 0)
-	credits += earned
+	var wages: int  = result.get("wages", 0)
+	credits += earned - wages
 	_current_system = result.get("destination_id", _current_system)
 	_update_header()
-	_toast("Arrived at %s. +%s cr." % [
-		result.get("destination", "destination"),
-		_format_number(earned)])
+
+	# Open the port/docking menu
+	var port := PortMenu.new()
+	port.setup({
+		"credits":        credits,
+		"crew":           _crew,
+		"crew_counter":   _crew_counter,
+		"current_system": _current_system,
+		"result":         result,
+		"wages":          wages,
+		"ship_nodes":     _all_nodes(),
+		"room_textures":  _room_textures,
+	})
+	add_child(port)
+	port.port_closed.connect(_on_port_closed)
+
+
+func _on_port_closed(result: Dictionary) -> void:
+	credits       = result.get("credits", credits)
+	_crew         = result.get("crew", _crew)
+	_crew_counter = result.get("crew_counter", _crew_counter)
+	_update_header()
+
+	var abandoned: Array = result.get("abandoned", [])
+	if not abandoned.is_empty():
+		_toast("Left behind: %s" % ", ".join(abandoned))
+
+	# Auto-save if we have a path
+	if not _last_save_path.is_empty():
+		_save_to_file(_last_save_path)
 
 
 # ── UI helpers ────────────────────────────────────────────────────────────────

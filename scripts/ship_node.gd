@@ -7,7 +7,7 @@ var def_id: String = ""
 var node_uid: String = ""          # stable ID for save/load (different from name)
 var current_durability: int = 100
 var max_durability: int = 100
-var hull_offset: Vector2 = Vector2.ZERO   # visual offset for hull layout (GraphEdit-space px)
+var hull_pos: Vector2 = Vector2.ZERO       # standalone hull layout position (decoupled from GraphEdit)
 
 var _lbl_power: Label
 var _lbl_type: Label
