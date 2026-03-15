@@ -1,52 +1,74 @@
 StarNode Progress — 2026-03-15
 ================================
 
-SESSION SUMMARY: Room Adjacency Bonuses + Hull Overlap Guides
--------------------------------------------------------------
+SESSION SUMMARY: Shipyard Modal Refactor + Job Board + Away Missions + Port Events
+-----------------------------------------------------------------------------------
 
 COMPLETED TODAY:
-1. Hull Adjacency Visual Guides (ship_blueprint.gd)
-   - Rooms within 55px hull-space show green connecting lines (adjacent/touching in 3D)
-   - Rooms within 30px show yellow lines (overlapping warning)
-   - Rooms within 15px show red lines + "!" indicator (stacked on top of each other)
-   - Guides visible in both normal and edit mode (brighter in edit mode)
-   - "ADJ: X" count label in bottom-right corner of blueprint panel
-   - Static compute_adjacencies() method for reuse by star_map.gd
+1. Job Board System (star_map_data.gd, main.gd)
+   - "Run Job" replaced with "Find Job" button opening a modal
+   - 2–5 random job listings per board, each with unique type, destination, pay
+   - 10 job types: Freight, Personnel Transfer, Smuggling, Survey, Medical Evac,
+     Salvage Run, Diplomatic Courier, Escort, Bounty Hunt, Colony Supply
+   - Pay scales with distance, job type multiplier, and harsh environment bonuses
+   - Durability warnings (red "!" with room initials) on risky listings
+   - Jobs sorted by travel time (shortest first)
 
-2. Adjacency Gameplay Bonuses (star_map.gd)
-   - Adjacency map computed once at journey start from hull_pos distances
-   - "Hull adjacency: X room pairs detected" logged at voyage start
-   - Daily wear reductions:
-     * Engines adjacent to Power = -1 wear on Engines (fuel efficiency)
-     * Utility adjacent to any room = -1 wear on that neighbor (maintenance access)
-     * All adjacency wear capped at -2 per room per day
-   - Combat damage reduction:
-     * Tactical adjacent to Command = 10% extra damage reduction
-     * Tactical adjacent to Power = 5% extra damage reduction
-     * Capped at 25% total adjacency damage reduction
-     * Stacks with existing Security crew mitigation
-   - Bonus payout boost:
-     * Command adjacent to any room = +5% payout per neighbor (max +15% at 3)
-     * Stacks with existing Officer crew negotiation bonus
-   - All adjacency effects logged with green hexagon icon
+2. Crew Management Improvements (port_menu.gd)
+   - "Dismiss" button on all crew rows with 1–7 days severance pay
+   - Scaled repair costs based on damage amount and room value
+   - Crew status sanitization on save/load (on_mission/shore_leave/arrested → active)
 
-3. Bug Fix: _log() null guard
-   - _build_from_layout() runs before _build_hud(), so _log_box was null
-   - Added null check in _log() — messages still queued in _log_lines
-   - Added flush of early log lines when _log_box is created in _build_hud()
+3. Away Missions System (port_menu.gd)
+   - 16 mission types across 4 danger levels (Low/Medium/High/Extreme)
+   - Crew selection with checkboxes, minimum crew requirements per mission
+   - Deploy → Wait → Resolve flow with animated wait button
+   - Debrief popup with crew portrait, outcome narrative, rewards/penalties
+   - Crew auto-reassigned after mission completion
 
-PREVIOUSLY COMPLETED (earlier this session / prior sessions):
+4. Random Port Events (port_menu.gd)
+   - 35% chance of event on arrival at any port
+   - 11 event types: stowaway, merchant, bar fight, mysterious package,
+     customs, refugee, black market tip, hull scrape, crew bonding,
+     old friend, bar rumor
+   - Each event presents choices with different outcomes
+
+5. Sidebar → Shipyard Modal Refactor (main.gd, port_menu.gd)
+   - Removed left sidebar room-purchase panel (was dead space after initial build)
+   - New full-screen Shipyard modal with filters, room list, detail panel, buy button
+   - Commander Percy NPC intro on new game with portrait and guidance dialogue
+   - Percy crew hiring hint after first job completion (defers port until dismissed)
+   - Shipyard accessible from header button (full catalog) and port menu tab (local stock)
+   - Port inventory varies by system type (stations stock more, black holes stock less)
+   - Port → Shipyard → Port flow wired (visit_shipyard signal, state sync, return)
+
+6. Hull Edit Button Moved (main.gd)
+   - "Edit Hull" button now sits above the blueprint preview (bottom-left)
+   - Removed from header bar to reduce clutter
+
+7. Star Map Enhancements (star_map.gd)
+   - Mouse wheel zoom in/out during 3D travel view
+   - Room labels removed from 3D ship during flight (cleaner look)
+   - Job type shown in opening travel log
+
+8. New Species Portraits (crew_data.gd)
+   - Added 6 new portraits: alien_fungal, alien_gaseous, alien_insectoid,
+     alien_stone, space_dog_golden, space_dog_terrier (13 total)
+
+PREVIOUSLY COMPLETED (prior sessions):
 - Hull layout fully decoupled from GraphEdit (hull_pos is standalone)
 - Hull edit mode with 2x blueprint size and drag-to-reposition
+- Hull adjacency visual guides (green/yellow/red distance lines)
+- Adjacency gameplay bonuses (wear reduction, combat mitigation, payout boost)
 - Crew system: random names, portraits, roles, efficiency stats
 - CrewData autoload with name generation and crew factory
 - Port menu: Summary, Repair, Crew (hire/assign), Shore Leave tabs
 - Shore leave mechanics with Wait button and outcomes
 - Clickable header labels (Location->port, Crew->crew tab, Power->breakdown)
-- Repair removed from sidebar (port-only now)
 - Larger 48x48 crew portraits, clickable for 96x96 stats popup
 
 CURRENT STATE:
 - Build: Clean (0 errors, 0 warnings)
-- All adjacency features functional and tested in-game
-- Players are rewarded for thoughtful hull layout in the editor
+- ideas.txt created with 12 future feature concepts
+- Save/load verified: persists credits, crew, jobs_completed, room durability,
+  hull positions, textures, current system

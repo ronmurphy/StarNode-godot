@@ -9,16 +9,21 @@ var lbl_credits: Label
 var lbl_power: Label
 var lbl_location: Label
 var lbl_crew: Label
-var lst_rooms: ItemList
-var lbl_room_detail: RichTextLabel
-var cb_universe: OptionButton
-var cb_type: OptionButton
-var txt_search: LineEdit
 var _job_board_popup: PanelContainer  # active job board modal (if open)
 var btn_delete_mode: Button
 var btn_hull_edit: Button
 var _blueprint_ctrl: ShipBlueprint
-var _room_shape_preview: RoomShapePreview
+
+# ── Shipyard modal refs (created/destroyed on open/close) ────────────────────
+var _shipyard_popup: Control           # the full-screen shipyard overlay
+var _sy_lst_rooms: ItemList
+var _sy_lbl_detail: RichTextLabel
+var _sy_cb_universe: OptionButton
+var _sy_cb_type: OptionButton
+var _sy_txt_search: LineEdit
+var _sy_shape_preview: RoomShapePreview
+var _sy_lbl_credits: Label
+var _return_to_port_after_shipyard: bool = false  # reopen port when shipyard closes
 
 # ── Game state ───────────────────────────────────────────────────────────────
 var ship_name: String = "My Ship"
@@ -67,7 +72,6 @@ const CLR_PWR_NEG   := Color(0.863, 0.392, 0.310, 1.0)
 # ════════════════════════════════════════════════════════════════════════════
 func _ready() -> void:
 	_build_ui()
-	_refresh_room_list()
 	_update_header()
 
 
@@ -94,7 +98,6 @@ func _build_ui() -> void:
 	root_vbox.add_child(body)
 
 	_build_graph(body)
-	_build_sidebar(body)
 	_build_blueprint_preview()
 
 
@@ -157,9 +160,20 @@ func _build_header(parent: Control) -> void:
 
 	_add_vsep(hbox)
 
+	var btn_shipyard := _make_btn("🔧 Shipyard", 90, func(): _show_shipyard(false))
+	btn_shipyard.add_theme_color_override("font_color", Color(0.7, 0.9, 1.0, 1.0))
+	hbox.add_child(btn_shipyard)
+
 	var btn_job := _make_btn("📋 Find Job", 100, _on_find_job)
 	btn_job.add_theme_color_override("font_color", Color(0.5, 1.0, 0.6, 1.0))
 	hbox.add_child(btn_job)
+
+	_add_vsep(hbox)
+
+	btn_delete_mode = _make_btn("DEL", 45, _on_toggle_delete_mode)
+	btn_delete_mode.add_theme_font_size_override("font_size", 9)
+	btn_delete_mode.add_theme_color_override("font_color", Color(1.0, 0.55, 0.55, 1.0))
+	hbox.add_child(btn_delete_mode)
 
 	_add_spacer(hbox, 4)
 
@@ -186,156 +200,342 @@ func _build_graph(parent: Control) -> void:
 	graph_edit.delete_nodes_request.connect(_on_delete_nodes_request)
 
 
-func _build_sidebar(parent: Control) -> void:
-	var sidebar := PanelContainer.new()
-	sidebar.custom_minimum_size.x = 272
-	_style_panel(sidebar, CLR_PANEL)
-	parent.add_child(sidebar)
+## ─────────────────────────────────────────────────────────────────────────────
+## SHIPYARD MODAL — room shopping (replaces the old sidebar)
+## ─────────────────────────────────────────────────────────────────────────────
 
-	var vbox := VBoxContainer.new()
-	vbox.add_theme_constant_override("separation", 6)
-	sidebar.add_child(vbox)
+const PERCY_PORTRAIT := "res://assets/pictures/crew/percy_commander.png"
 
-	# Section label
-	vbox.add_child(_make_label("ROOMS", 10, CLR_ACCENT))
+
+func _show_percy_hint(message: String, on_dismiss: Callable = Callable()) -> void:
+	## Quick Percy popup with a message and a dismiss button.
+	var overlay := Control.new()
+	overlay.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	overlay.z_index = 60
+	overlay.mouse_filter = Control.MOUSE_FILTER_STOP
+
+	var bg := ColorRect.new()
+	bg.color = Color(0.02, 0.03, 0.06, 0.85)
+	bg.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	bg.mouse_filter = Control.MOUSE_FILTER_STOP
+	overlay.add_child(bg)
+
+	var panel := PanelContainer.new()
+	var style := StyleBoxFlat.new()
+	style.bg_color = CLR_PANEL
+	style.border_color = CLR_ACCENT.darkened(0.3)
+	style.set_border_width_all(2)
+	style.set_corner_radius_all(8)
+	style.set_content_margin_all(16)
+	panel.add_theme_stylebox_override("panel", style)
+	panel.set_anchors_and_offsets_preset(Control.PRESET_CENTER)
+	panel.offset_left = -260
+	panel.offset_right = 260
+	panel.offset_top = -100
+	panel.offset_bottom = 100
+	overlay.add_child(panel)
+
+	var vb := VBoxContainer.new()
+	vb.add_theme_constant_override("separation", 10)
+	panel.add_child(vb)
+
+	var hb := HBoxContainer.new()
+	hb.add_theme_constant_override("separation", 12)
+	vb.add_child(hb)
+
+	var percy_tex := TextureRect.new()
+	percy_tex.custom_minimum_size = Vector2(64, 64)
+	percy_tex.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+	percy_tex.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+	if ResourceLoader.exists(PERCY_PORTRAIT):
+		percy_tex.texture = load(PERCY_PORTRAIT)
+	hb.add_child(percy_tex)
+
+	var speech_vb := VBoxContainer.new()
+	speech_vb.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	speech_vb.add_theme_constant_override("separation", 2)
+	hb.add_child(speech_vb)
+
+	speech_vb.add_child(_make_label("Commander Percy", 13, CLR_ACCENT))
+
+	var speech := RichTextLabel.new()
+	speech.bbcode_enabled = true
+	speech.fit_content = true
+	speech.scroll_active = false
+	speech.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	speech.add_theme_font_size_override("normal_font_size", 11)
+	speech.add_theme_color_override("default_color", CLR_TEXT)
+	speech.text = "[color=#aabbdd]%s[/color]" % message
+	speech_vb.add_child(speech)
+
+	var _dismiss := on_dismiss  # capture for lambda
+	var btn_ok := _make_btn("Got it", 80, func():
+		overlay.queue_free()
+		if _dismiss.is_valid():
+			_dismiss.call()
+	)
+	btn_ok.add_theme_color_override("font_color", Color(0.5, 1.0, 0.6, 1.0))
+	vb.add_child(btn_ok)
+
+	add_child(overlay)
+
+
+func _show_shipyard(show_intro: bool, inventory: Array = []) -> void:
+	if _shipyard_popup and is_instance_valid(_shipyard_popup):
+		return  # already open
+
+	var popup := Control.new()
+	popup.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	popup.z_index = 50
+	_shipyard_popup = popup
+
+	# Dark overlay
+	var bg := ColorRect.new()
+	bg.color = Color(0.02, 0.03, 0.06, 0.92)
+	bg.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	popup.add_child(bg)
+
+	# Main panel
+	var panel := PanelContainer.new()
+	var style := StyleBoxFlat.new()
+	style.bg_color = CLR_PANEL
+	style.border_color = CLR_ACCENT.darkened(0.3)
+	style.set_border_width_all(2)
+	style.set_corner_radius_all(8)
+	style.set_content_margin_all(16)
+	panel.add_theme_stylebox_override("panel", style)
+	panel.set_anchors_and_offsets_preset(Control.PRESET_CENTER)
+	panel.offset_left = -450
+	panel.offset_right = 450
+	panel.offset_top = -340
+	panel.offset_bottom = 340
+	popup.add_child(panel)
+
+	var root_vb := VBoxContainer.new()
+	root_vb.add_theme_constant_override("separation", 8)
+	panel.add_child(root_vb)
+
+	# ── Percy intro (first time only) ────────────────────────────────────────
+	if show_intro:
+		var intro_hb := HBoxContainer.new()
+		intro_hb.add_theme_constant_override("separation", 12)
+		root_vb.add_child(intro_hb)
+
+		var percy_tex := TextureRect.new()
+		percy_tex.custom_minimum_size = Vector2(72, 72)
+		percy_tex.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+		percy_tex.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+		if ResourceLoader.exists(PERCY_PORTRAIT):
+			percy_tex.texture = load(PERCY_PORTRAIT)
+		intro_hb.add_child(percy_tex)
+
+		var speech_vb := VBoxContainer.new()
+		speech_vb.add_theme_constant_override("separation", 2)
+		intro_hb.add_child(speech_vb)
+
+		var name_lbl := _make_label("Commander Percy", 13, CLR_ACCENT)
+		speech_vb.add_child(name_lbl)
+
+		var speech := RichTextLabel.new()
+		speech.bbcode_enabled = true
+		speech.fit_content = true
+		speech.scroll_active = false
+		speech.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		speech.add_theme_font_size_override("normal_font_size", 11)
+		speech.add_theme_color_override("default_color", CLR_TEXT)
+		speech.text = (
+			"[color=#aabbdd]\"Welcome, Captain. You've got [color=#ffd050]%d credits[/color] " +
+			"to outfit your ship. You'll need at least a [color=#4fdf8c]Power[/color] source, " +
+			"an [color=#4fdf8c]Engine[/color], and a [color=#4fdf8c]Command[/color] room to fly. " +
+			"Whatever's left over, spend on crew — you'll want at least two hands on deck. " +
+			"Choose wisely, and good luck out there.\"[/color]"
+		) % credits
+		speech_vb.add_child(speech)
+
+		var sep := HSeparator.new()
+		sep.add_theme_color_override("separator", CLR_ACCENT.darkened(0.4))
+		root_vb.add_child(sep)
+
+	# ── Header row ───────────────────────────────────────────────────────────
+	var header := HBoxContainer.new()
+	header.add_theme_constant_override("separation", 12)
+	root_vb.add_child(header)
+
+	header.add_child(_make_label("SHIPYARD", 16, CLR_ACCENT))
+	header.add_child(_spacer_ctrl())
+
+	_sy_lbl_credits = _make_label("Credits: %s" % _format_number(credits), 13, CLR_GOLD)
+	header.add_child(_sy_lbl_credits)
+
+	var rooms_count := _make_label("Rooms: %d" % _all_nodes().size(), 11, CLR_DIM)
+	rooms_count.name = "lbl_rooms_count"
+	header.add_child(rooms_count)
+
+	# ── Body: filters + list on left, detail on right ────────────────────────
+	var body_hb := HBoxContainer.new()
+	body_hb.add_theme_constant_override("separation", 10)
+	body_hb.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	root_vb.add_child(body_hb)
+
+	# Left column: filters + room list
+	var left_vb := VBoxContainer.new()
+	left_vb.add_theme_constant_override("separation", 4)
+	left_vb.custom_minimum_size.x = 300
+	body_hb.add_child(left_vb)
 
 	# Search
-	txt_search = LineEdit.new()
-	txt_search.placeholder_text = "Search rooms..."
-	_style_input(txt_search)
-	txt_search.text_changed.connect(func(_t): _refresh_room_list())
-	vbox.add_child(txt_search)
+	_sy_txt_search = LineEdit.new()
+	_sy_txt_search.placeholder_text = "Search rooms..."
+	_style_input(_sy_txt_search)
+	_sy_txt_search.text_changed.connect(func(_t): _sy_refresh_room_list(inventory))
+	left_vb.add_child(_sy_txt_search)
 
-	# Universe filter
-	cb_universe = OptionButton.new()
+	# Filters row
+	var filter_hb := HBoxContainer.new()
+	filter_hb.add_theme_constant_override("separation", 4)
+	left_vb.add_child(filter_hb)
+
+	_sy_cb_universe = OptionButton.new()
+	_sy_cb_universe.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	for u in RoomData.UNIVERSES:
-		cb_universe.add_item(u)
-	cb_universe.selected = 0
-	cb_universe.item_selected.connect(func(_i): _refresh_room_list())
-	vbox.add_child(cb_universe)
+		_sy_cb_universe.add_item(u)
+	_sy_cb_universe.selected = 0
+	_sy_cb_universe.item_selected.connect(func(_i): _sy_refresh_room_list(inventory))
+	filter_hb.add_child(_sy_cb_universe)
 
-	# Type filter
-	cb_type = OptionButton.new()
+	_sy_cb_type = OptionButton.new()
+	_sy_cb_type.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	for t in RoomData.TYPES:
-		cb_type.add_item(t)
-	cb_type.selected = 0
-	cb_type.item_selected.connect(func(_i): _refresh_room_list())
-	vbox.add_child(cb_type)
+		_sy_cb_type.add_item(t)
+	_sy_cb_type.selected = 0
+	_sy_cb_type.item_selected.connect(func(_i): _sy_refresh_room_list(inventory))
+	filter_hb.add_child(_sy_cb_type)
 
 	# Room list
-	lst_rooms = ItemList.new()
-	lst_rooms.custom_minimum_size = Vector2(0, 240)
-	lst_rooms.size_flags_vertical = Control.SIZE_EXPAND_FILL
-	lst_rooms.item_selected.connect(_on_room_selected)
-	lst_rooms.item_activated.connect(_on_room_activated)
-	vbox.add_child(lst_rooms)
+	_sy_lst_rooms = ItemList.new()
+	_sy_lst_rooms.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	_sy_lst_rooms.item_selected.connect(_sy_on_room_selected)
+	_sy_lst_rooms.item_activated.connect(func(_i): _sy_buy_room(inventory))
+	left_vb.add_child(_sy_lst_rooms)
 
-	# Add button
-	var btn_add := _make_btn("+ Add Room to Ship", -1, _on_add_room)
-	btn_add.add_theme_color_override("font_color", Color(0.7, 0.9, 1.0, 1.0))
-	vbox.add_child(btn_add)
+	# Buy button
+	var btn_buy := _make_btn("+ Buy Room", -1, func(): _sy_buy_room(inventory))
+	btn_buy.add_theme_color_override("font_color", Color(0.5, 1.0, 0.6, 1.0))
+	left_vb.add_child(btn_buy)
 
-	# Detail box — HBox: [shape preview | room text]
-	vbox.add_child(_make_label("Room Details", 10, CLR_ACCENT))
+	# Right column: room detail
+	var right_vb := VBoxContainer.new()
+	right_vb.add_theme_constant_override("separation", 4)
+	right_vb.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	body_hb.add_child(right_vb)
 
-	var detail_hbox := HBoxContainer.new()
-	detail_hbox.add_theme_constant_override("separation", 4)
-	vbox.add_child(detail_hbox)
+	right_vb.add_child(_make_label("Room Details", 11, CLR_ACCENT))
 
-	# Shape preview (left side — fandom-aware silhouette)
-	_room_shape_preview = RoomShapePreview.new()
-	_room_shape_preview.custom_minimum_size = Vector2(76, 110)
+	# Shape preview
+	_sy_shape_preview = RoomShapePreview.new()
+	_sy_shape_preview.custom_minimum_size = Vector2(0, 140)
 	var shape_style := StyleBoxFlat.new()
 	shape_style.bg_color = Color(0.055, 0.078, 0.125, 1.0)
 	shape_style.border_color = Color(0.15, 0.20, 0.32, 1.0)
 	shape_style.set_border_width_all(1)
-	_room_shape_preview.add_theme_stylebox_override("panel", shape_style)
-	detail_hbox.add_child(_room_shape_preview)
+	_sy_shape_preview.add_theme_stylebox_override("panel", shape_style)
+	right_vb.add_child(_sy_shape_preview)
 
-	# Room detail text (right side)
-	lbl_room_detail = RichTextLabel.new()
-	lbl_room_detail.custom_minimum_size = Vector2(0, 110)
-	lbl_room_detail.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	lbl_room_detail.bbcode_enabled = true
-	lbl_room_detail.fit_content = false
-	lbl_room_detail.scroll_active = false
-	lbl_room_detail.autowrap_mode = TextServer.AUTOWRAP_WORD
-	lbl_room_detail.text = "[color=#7090b0]Select a room from the list above.[/color]"
+	# Detail text
+	_sy_lbl_detail = RichTextLabel.new()
+	_sy_lbl_detail.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	_sy_lbl_detail.bbcode_enabled = true
+	_sy_lbl_detail.fit_content = false
+	_sy_lbl_detail.scroll_active = false
+	_sy_lbl_detail.autowrap_mode = TextServer.AUTOWRAP_WORD
+	_sy_lbl_detail.text = "[color=#7090b0]Select a room to see details.[/color]"
 	var detail_style := StyleBoxFlat.new()
 	detail_style.bg_color = Color(0.055, 0.078, 0.125, 1.0)
 	detail_style.border_color = Color(0.15, 0.20, 0.32, 1.0)
 	detail_style.set_border_width_all(1)
-	detail_style.set_content_margin_all(6)
-	lbl_room_detail.add_theme_stylebox_override("normal", detail_style)
-	detail_hbox.add_child(lbl_room_detail)
+	detail_style.set_content_margin_all(8)
+	_sy_lbl_detail.add_theme_stylebox_override("normal", detail_style)
+	right_vb.add_child(_sy_lbl_detail)
 
-	# Mode buttons
-	btn_delete_mode = _make_btn("Delete Mode: OFF", -1, _on_toggle_delete_mode)
-	btn_delete_mode.add_theme_color_override("font_color", Color(1.0, 0.55, 0.55, 1.0))
-	vbox.add_child(btn_delete_mode)
+	# ── Bottom bar ───────────────────────────────────────────────────────────
+	var sep2 := HSeparator.new()
+	sep2.add_theme_color_override("separator", CLR_ACCENT.darkened(0.4))
+	root_vb.add_child(sep2)
 
-	btn_hull_edit = _make_btn("Hull Edit: OFF", -1, _on_toggle_hull_edit)
-	btn_hull_edit.add_theme_color_override("font_color", Color(0.55, 0.85, 1.0, 1.0))
-	vbox.add_child(btn_hull_edit)
+	var bottom := HBoxContainer.new()
+	bottom.add_theme_constant_override("separation", 8)
+	root_vb.add_child(bottom)
 
-	var btn_clear := _make_btn("Clear All Nodes", -1, _on_clear_all)
-	btn_clear.add_theme_color_override("font_color", Color(1.0, 0.4, 0.4, 1.0))
-	vbox.add_child(btn_clear)
+	var help := _make_label("Double-click a room to buy it instantly", 9, CLR_DIM)
+	bottom.add_child(help)
 
-	# Help text
-	var help := _make_label(
-		"Drag ports to connect  •  Delete key removes selected\nRight-click + drag to pan  •  Scroll to zoom", 9, CLR_DIM)
-	help.autowrap_mode = TextServer.AUTOWRAP_WORD
-	vbox.add_child(help)
+	bottom.add_child(_spacer_ctrl())
 
+	var btn_close := _make_btn("Close Shipyard", 130, _close_shipyard)
+	btn_close.add_theme_color_override("font_color", Color(0.5, 1.0, 0.6, 1.0))
+	bottom.add_child(btn_close)
 
-func _build_blueprint_preview() -> void:
-	_blueprint_ctrl = ShipBlueprint.new()
-	_blueprint_ctrl.graph_ref     = graph_edit
-	_blueprint_ctrl.mouse_filter  = Control.MOUSE_FILTER_IGNORE
-	_blueprint_ctrl.z_index       = 10
-	# Anchor bottom-left of the window — sits inside the graph area
-	# (sidebar is on the right, header is only 52px tall)
-	_blueprint_ctrl.set_anchors_and_offsets_preset(Control.PRESET_BOTTOM_LEFT)
-	_blueprint_ctrl.offset_left   =  10.0
-	_blueprint_ctrl.offset_right  = 192.0   # 10 + 182 wide
-	_blueprint_ctrl.offset_top    = -152.0  # 142 tall + 10 margin from bottom
-	_blueprint_ctrl.offset_bottom =  -10.0
-	add_child(_blueprint_ctrl)
+	add_child(popup)
+	_sy_refresh_room_list(inventory)
 
 
-# ── Room list ─────────────────────────────────────────────────────────────────
-func _refresh_room_list() -> void:
-	var uni: String = RoomData.UNIVERSES[cb_universe.selected]
-	var room_type: String = RoomData.TYPES[cb_type.selected]
-	var search: String = txt_search.text
-	_filtered_rooms = RoomData.filter(uni, room_type, search)
+func _close_shipyard() -> void:
+	if _shipyard_popup and is_instance_valid(_shipyard_popup):
+		_shipyard_popup.queue_free()
+		_shipyard_popup = null
+	_update_header()
+	# If we came from the port menu, reopen it
+	if _return_to_port_after_shipyard:
+		_return_to_port_after_shipyard = false
+		_open_port_menu("shipyard")
 
-	lst_rooms.clear()
+
+func _spacer_ctrl() -> Control:
+	var s := Control.new()
+	s.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	return s
+
+
+func _sy_refresh_room_list(inventory: Array = []) -> void:
+	if _sy_lst_rooms == null:
+		return
+	var uni: String = RoomData.UNIVERSES[_sy_cb_universe.selected]
+	var room_type: String = RoomData.TYPES[_sy_cb_type.selected]
+	var search: String = _sy_txt_search.text
+
+	if inventory.is_empty():
+		_filtered_rooms = RoomData.filter(uni, room_type, search)
+	else:
+		# Port merchant: filter from subset
+		_filtered_rooms = []
+		for room in inventory:
+			if uni != "All" and room.universe != uni:
+				continue
+			if room_type != "All" and room.type != room_type:
+				continue
+			if not search.is_empty() and search.to_lower() not in room.name.to_lower():
+				continue
+			_filtered_rooms.append(room)
+
+	_sy_lst_rooms.clear()
 	for room in _filtered_rooms:
 		var type_color: Color = RoomData.type_color(room.type)
-		lst_rooms.add_item(room.name, null, true)
-		var idx := lst_rooms.item_count - 1
-		lst_rooms.set_item_custom_fg_color(idx, type_color.lightened(0.3))
-		lst_rooms.set_item_tooltip(idx, "[%s] %s\nCost: %d cr | Power: %s" % [
-			room.type, room.universe, room.cost, RoomData.power_label(room.power)])
+		var affordable: bool = credits >= room.cost
+		var label: String = "%s  (%d cr)" % [room.name, room.cost]
+		_sy_lst_rooms.add_item(label, null, true)
+		var idx := _sy_lst_rooms.item_count - 1
+		_sy_lst_rooms.set_item_custom_fg_color(idx,
+			type_color.lightened(0.3) if affordable else Color(0.45, 0.42, 0.40, 1.0))
 
 
-func _on_room_selected(index: int) -> void:
+func _sy_on_room_selected(index: int) -> void:
 	if index < 0 or index >= _filtered_rooms.size():
 		return
-	_show_room_detail(_filtered_rooms[index])
-
-
-func _on_room_activated(index: int) -> void:
-	_on_add_room()
-
-
-func _show_room_detail(def: Dictionary) -> void:
-	_room_shape_preview.set_room(def)
+	var def: Dictionary = _filtered_rooms[index]
+	_sy_shape_preview.set_room(def)
 	var pwr_color: String = "#4fdf8c" if def.power >= 0 else "#df6650"
 	var pwr_str: String = RoomData.power_label(def.power)
-	lbl_room_detail.text = (
+	_sy_lbl_detail.text = (
 		"[b][color=#c8d8ff]%s[/color][/b]\n" % def.name +
 		"[color=#7090b0]%s  ·  %s[/color]\n" % [def.type, def.universe] +
 		"Cost: [color=#ffd050]%d[/color] cr   Power: [color=%s]%s[/color]\n" % [def.cost, pwr_color, pwr_str] +
@@ -344,9 +544,8 @@ func _show_room_detail(def: Dictionary) -> void:
 	)
 
 
-# ── Adding nodes ──────────────────────────────────────────────────────────────
-func _on_add_room() -> void:
-	var sel := lst_rooms.get_selected_items()
+func _sy_buy_room(inventory: Array = []) -> void:
+	var sel: Array = _sy_lst_rooms.get_selected_items()
 	if sel.is_empty():
 		_toast("Select a room from the list first.")
 		return
@@ -360,20 +559,16 @@ func _on_add_room() -> void:
 	var uid := "node_%d" % _node_counter
 
 	var ship_node := ShipNode.new()
-	ship_node.name = uid          # GraphEdit uses name as key
+	ship_node.name = uid
 	graph_edit.add_child(ship_node)
 	ship_node.setup(def, uid)
 
-	# Place near center + small random offset
 	var cx: float = -graph_edit.scroll_offset.x + graph_edit.size.x * 0.5 - 80.0
 	var cy: float = -graph_edit.scroll_offset.y + graph_edit.size.y * 0.5 - 40.0
 	ship_node.position_offset = Vector2(cx + randf_range(-80, 80), cy + randf_range(-60, 60))
-
-	# Auto-place in hull layout (grid pattern, decoupled from GraphEdit)
 	ship_node.hull_pos = _next_hull_slot()
 
 	credits -= def.cost
-	# Assign a random hull texture (persists in save file)
 	_room_textures[uid] = ROOM_TEXTURES[randi() % ROOM_TEXTURES.size()]
 
 	# Fresh ship: auto-assign one starter crew member per room
@@ -384,6 +579,49 @@ func _on_add_room() -> void:
 		_crew.append(cm)
 
 	_update_header()
+
+	# Update shipyard UI
+	if _sy_lbl_credits:
+		_sy_lbl_credits.text = "Credits: %s" % _format_number(credits)
+	# Update room count label
+	if _shipyard_popup and is_instance_valid(_shipyard_popup):
+		var rc := _shipyard_popup.find_child("lbl_rooms_count", true, false)
+		if rc:
+			(rc as Label).text = "Rooms: %d" % _all_nodes().size()
+	_sy_refresh_room_list(inventory)
+
+
+func _build_blueprint_preview() -> void:
+	_blueprint_ctrl = ShipBlueprint.new()
+	_blueprint_ctrl.graph_ref     = graph_edit
+	_blueprint_ctrl.mouse_filter  = Control.MOUSE_FILTER_IGNORE
+	_blueprint_ctrl.z_index       = 10
+	# Anchor bottom-left of the window — sits inside the graph area
+	_blueprint_ctrl.set_anchors_and_offsets_preset(Control.PRESET_BOTTOM_LEFT)
+	_blueprint_ctrl.offset_left   =  10.0
+	_blueprint_ctrl.offset_right  = 192.0   # 10 + 182 wide
+	_blueprint_ctrl.offset_top    = -152.0  # 142 tall + 10 margin from bottom
+	_blueprint_ctrl.offset_bottom =  -10.0
+	add_child(_blueprint_ctrl)
+
+	# Hull edit button anchored just above the blueprint preview
+	var btn_hull := Button.new()
+	btn_hull.text = "Edit Hull"
+	btn_hull.add_theme_font_size_override("font_size", 10)
+	btn_hull.add_theme_color_override("font_color", Color(0.55, 0.85, 1.0, 1.0))
+	btn_hull.z_index = 11
+	btn_hull.set_anchors_and_offsets_preset(Control.PRESET_BOTTOM_LEFT)
+	btn_hull.offset_left   =  10.0
+	btn_hull.offset_right  = 100.0
+	btn_hull.offset_top    = -172.0
+	btn_hull.offset_bottom = -155.0
+	btn_hull.pressed.connect(_on_toggle_hull_edit)
+	btn_hull.name = "btn_hull_edit_overlay"
+	add_child(btn_hull)
+	btn_hull_edit = btn_hull
+
+
+# ── Adding nodes (kept for hull slot logic) ───────────────────────────────────
 
 
 func _next_hull_slot() -> Vector2:
@@ -419,12 +657,7 @@ func _on_node_selected(node: Node) -> void:
 		_delete_ship_node(node as ShipNode)
 		return
 
-	var ship_node := node as ShipNode
-	if ship_node == null:
-		return
-	var def := RoomData.find(ship_node.def_id)
-	if not def.is_empty():
-		_show_room_detail(def)
+	pass  # Room detail now shown in Shipyard modal
 
 
 func _on_delete_nodes_request(nodes: Array) -> void:
@@ -521,6 +754,7 @@ func _open_port_menu(tab: String = "summary") -> void:
 	})
 	add_child(port)
 	port.port_closed.connect(_on_port_closed)
+	port.visit_shipyard.connect(_on_visit_shipyard.bind(port))
 
 
 func _show_power_breakdown() -> void:
@@ -625,12 +859,16 @@ func _show_power_breakdown() -> void:
 # ── Mode buttons ──────────────────────────────────────────────────────────────
 func _on_toggle_delete_mode() -> void:
 	_delete_mode = not _delete_mode
-	btn_delete_mode.text = "Delete Mode: %s" % ("ON — click nodes to remove" if _delete_mode else "OFF")
+	btn_delete_mode.text = "DEL %s" % ("ON" if _delete_mode else "")
+	btn_delete_mode.add_theme_color_override("font_color",
+		Color(1.0, 0.3, 0.3, 1.0) if _delete_mode else Color(1.0, 0.55, 0.55, 1.0))
 
 
 func _on_toggle_hull_edit() -> void:
 	_hull_edit_mode = not _hull_edit_mode
-	btn_hull_edit.text = "Hull Edit: %s" % ("ON — drag shapes in preview" if _hull_edit_mode else "OFF")
+	btn_hull_edit.text = "HULL %s" % ("ON" if _hull_edit_mode else "")
+	btn_hull_edit.add_theme_color_override("font_color",
+		Color(0.3, 0.95, 1.0, 1.0) if _hull_edit_mode else Color(0.55, 0.85, 1.0, 1.0))
 	_blueprint_ctrl.edit_mode = _hull_edit_mode
 	_blueprint_ctrl.mouse_filter = Control.MOUSE_FILTER_STOP if _hull_edit_mode else Control.MOUSE_FILTER_IGNORE
 	# 2× preview size when editing
@@ -693,6 +931,8 @@ func _on_new_ship() -> void:
 	_jobs_completed = 0
 	txt_ship_name.text = ship_name
 	_update_header()
+	# Open the shipyard with Percy's intro for the new captain
+	_show_shipyard(true)
 
 
 func _on_save() -> void:
@@ -1068,7 +1308,23 @@ func _on_job_finished(result: Dictionary) -> void:
 	_current_system = result.get("destination_id", _current_system)
 	_update_header()
 
-	# Open the port/docking menu
+	# Percy's crew hint after the very first job — defer port until dismissed
+	if _jobs_completed == 1:
+		var _result := result
+		var _wages := wages
+		_show_percy_hint(
+			"\"Good work, Captain! Now that you've docked at a new port, " +
+			"head to the [color=#4fdf8c]Crew[/color] tab — you can " +
+			"[color=#ffd050]hire crew[/color] here. More hands means " +
+			"less wear on your ship and better pay. Don't fly short-staffed!\"",
+			func(): _open_port_after_job(_result, _wages)
+		)
+		return
+
+	_open_port_after_job(result, wages)
+
+
+func _open_port_after_job(result: Dictionary, wages: int) -> void:
 	var port := PortMenu.new()
 	port.setup({
 		"credits":        credits,
@@ -1082,6 +1338,7 @@ func _on_job_finished(result: Dictionary) -> void:
 	})
 	add_child(port)
 	port.port_closed.connect(_on_port_closed)
+	port.visit_shipyard.connect(_on_visit_shipyard.bind(port))
 
 
 func _on_port_closed(result: Dictionary) -> void:
@@ -1097,6 +1354,20 @@ func _on_port_closed(result: Dictionary) -> void:
 	# Auto-save if we have a path
 	if not _last_save_path.is_empty():
 		_save_to_file(_last_save_path)
+
+
+func _on_visit_shipyard(inventory: Array, port: Control) -> void:
+	## Port's "Open Shipyard" button was pressed — close port, open shipyard,
+	## and flag so we reopen port when the shipyard closes.
+	# Sync state from port before closing it
+	if port.has_method("get_state"):
+		var st: Dictionary = port.get_state()
+		credits       = st.get("credits", credits)
+		_crew         = st.get("crew", _crew)
+		_crew_counter = st.get("crew_counter", _crew_counter)
+	port.queue_free()
+	_return_to_port_after_shipyard = true
+	_show_shipyard(false, inventory)
 
 
 # ── UI helpers ────────────────────────────────────────────────────────────────

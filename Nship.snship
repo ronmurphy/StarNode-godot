@@ -1,0 +1,90 @@
+{
+	"connections": [
+		{
+			"from": "node_3",
+			"from_port": 0,
+			"to": "node_1",
+			"to_port": 0
+		},
+		{
+			"from": "node_1",
+			"from_port": 0,
+			"to": "node_2",
+			"to_port": 0
+		}
+	],
+	"counter": 3,
+	"credits": 1518,
+	"crew": [
+		{
+			"assigned_to": "node_1",
+			"efficiency": 0.91,
+			"id": "crew_1",
+			"name": "Vex Thorne",
+			"portrait": "res://assets/pictures/profiles/alien_fungal.png",
+			"role": "Technician",
+			"shore_leave_days": 0.0,
+			"status": "active"
+		},
+		{
+			"assigned_to": "node_2",
+			"efficiency": 0.63,
+			"id": "crew_2",
+			"name": "Jace Malik",
+			"portrait": "res://assets/pictures/profiles/space_dog_terrier.png",
+			"role": "Engineer",
+			"shore_leave_days": 0.0,
+			"status": "active"
+		},
+		{
+			"assigned_to": "node_3",
+			"efficiency": 0.56,
+			"id": "crew_3",
+			"name": "Sable Qyn",
+			"portrait": "res://assets/pictures/profiles/alien_stone.png",
+			"role": "Officer",
+			"shore_leave_days": 0.0,
+			"status": "active"
+		}
+	],
+	"crew_counter": 4,
+	"current_system": "station_k",
+	"jobs_completed": 1,
+	"nodes": [
+		{
+			"def_id": "bsg_tylium",
+			"durability": 94,
+			"hull_px": 0.0,
+			"hull_py": 11.4285697937012,
+			"name": "node_1",
+			"pos_x": 720.0,
+			"pos_y": 280.0,
+			"texture": "res://assets/pictures/textures/tex_varak_hull.png",
+			"uid": "node_1"
+		},
+		{
+			"def_id": "dune_navchamber",
+			"durability": 80,
+			"hull_px": 0.0,
+			"hull_py": -20.4081592559814,
+			"name": "node_3",
+			"pos_x": 400.0,
+			"pos_y": 160.0,
+			"texture": "res://assets/pictures/textures/tex_luminar_hull.png",
+			"uid": "node_3"
+		},
+		{
+			"def_id": "trek_impulse",
+			"durability": 90,
+			"hull_px": -0.816326498985291,
+			"hull_py": 33.4693756103516,
+			"name": "node_2",
+			"pos_x": 920.0,
+			"pos_y": 140.0,
+			"texture": "res://assets/pictures/textures/tex_vothaal_hull.png",
+			"uid": "node_2"
+		}
+	],
+	"ship_name": "Nship",
+	"version": 1
+}

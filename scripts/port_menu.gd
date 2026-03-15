@@ -1,10 +1,11 @@
 ## port_menu.gd — Full-screen docking/port menu shown after arriving at a system.
-## Tabs: Summary, Repair, Crew, Shore Leave, Away Missions.
+## Tabs: Summary, Repair, Crew, Shore Leave, Away Missions, Shipyard.
 ## "Depart" button closes and returns.
 class_name PortMenu
 extends Control
 
 signal port_closed(result: Dictionary)
+signal visit_shipyard(inventory: Array)
 
 # ── Theme (matches main.gd dark palette) ─────────────────────────────────────
 const _BG      := Color(0.02, 0.03, 0.06, 0.92)
@@ -125,7 +126,7 @@ func _build_ui() -> void:
 	tab_bar.add_theme_constant_override("separation", 4)
 	vbox.add_child(tab_bar)
 
-	for tab_name in ["summary", "repair", "crew", "shore_leave", "away_missions"]:
+	for tab_name in ["summary", "repair", "crew", "shore_leave", "away_missions", "shipyard"]:
 		var btn := Button.new()
 		btn.text = tab_name.replace("_", " ").to_upper()
 		btn.add_theme_font_size_override("font_size", 11)
@@ -168,7 +169,7 @@ func _show_tab(tab_name: String) -> void:
 		child.queue_free()
 	# Highlight active tab
 	for i in _tab_buttons.size():
-		var names := ["summary", "repair", "crew", "shore_leave", "away_missions"]
+		var names := ["summary", "repair", "crew", "shore_leave", "away_missions", "shipyard"]
 		_tab_buttons[i].add_theme_color_override("font_color",
 			_ACCENT if names[i] == tab_name else _DIM)
 	# Build tab content
@@ -178,6 +179,7 @@ func _show_tab(tab_name: String) -> void:
 		"crew":        _build_crew()
 		"shore_leave":    _build_shore_leave()
 		"away_missions":  _build_away_missions()
+		"shipyard":       _build_shipyard()
 
 
 # ══════════════════════════════════════════════════════════════════════════════
@@ -1378,6 +1380,143 @@ func _show_mission_debrief(mission: Dictionary, results: Array, reporter: Dictio
 
 
 # ══════════════════════════════════════════════════════════════════════════════
+# TAB: SHIPYARD — port parts dealer
+# ══════════════════════════════════════════════════════════════════════════════
+
+func _build_shipyard() -> void:
+	var vb := _content_area as VBoxContainer
+
+	var sys := StarMapData.find_system(_current_system)
+	var sys_name: String = sys.get("name", "Unknown") if not sys.is_empty() else "Unknown"
+	var sys_type: String = sys.get("type", "star") if not sys.is_empty() else "star"
+
+	vb.add_child(_lbl("PARTS DEALER — %s" % sys_name, 14, _ACCENT))
+	vb.add_child(_lbl("The local merchant has parts in stock. Not everything — you take what they've got.", 10, _DIM))
+	vb.add_child(_lbl(""))
+
+	# Generate port-specific inventory
+	var inventory := _generate_port_inventory(sys_type)
+
+	# Show inventory summary
+	var type_counts: Dictionary = {}
+	for room in inventory:
+		var t: String = room.get("type", "?")
+		type_counts[t] = type_counts.get(t, 0) + 1
+	var summary_parts: Array = []
+	for t in type_counts:
+		summary_parts.append("%d %s" % [type_counts[t], t])
+	vb.add_child(_lbl("In stock: %d parts (%s)" % [inventory.size(), ", ".join(summary_parts)], 11, _GOLD))
+	vb.add_child(_lbl(""))
+
+	# List some highlights
+	var scroll := ScrollContainer.new()
+	scroll.size_flags_vertical = SIZE_EXPAND_FILL
+	vb.add_child(scroll)
+	var list := VBoxContainer.new()
+	list.size_flags_horizontal = SIZE_EXPAND_FILL
+	list.add_theme_constant_override("separation", 4)
+	scroll.add_child(list)
+
+	# Group by type
+	var by_type: Dictionary = {}
+	for room in inventory:
+		var t: String = room.get("type", "Other")
+		if not by_type.has(t):
+			by_type[t] = []
+		by_type[t].append(room)
+
+	for rtype in ["Power", "Engines", "Command", "Tactical", "Utility"]:
+		if not by_type.has(rtype):
+			continue
+		list.add_child(_lbl(rtype.to_upper(), 11, _ACCENT))
+		for room in by_type[rtype]:
+			var row := HBoxContainer.new()
+			row.add_theme_constant_override("separation", 8)
+			list.add_child(row)
+
+			var pwr_str: String = ""
+			var pwr_val: int = room.get("power", 0)
+			if pwr_val > 0:
+				pwr_str = "  [color=#4fdf8c]+%d PWR[/color]" % pwr_val
+			elif pwr_val < 0:
+				pwr_str = "  [color=#df6650]%d PWR[/color]" % pwr_val
+
+			var name_lbl := RichTextLabel.new()
+			name_lbl.bbcode_enabled = true
+			name_lbl.fit_content = true
+			name_lbl.scroll_active = false
+			name_lbl.custom_minimum_size.x = 260
+			name_lbl.add_theme_font_size_override("normal_font_size", 10)
+			name_lbl.text = "[color=#c8d8ff]%s[/color]  [color=#7090b0]%s[/color]%s" % [
+				room.name, room.universe, pwr_str]
+			row.add_child(name_lbl)
+
+			row.add_child(_spacer())
+			row.add_child(_lbl("%d cr" % room.cost, 10,
+				_GOLD if _credits >= room.cost else _RED))
+
+		list.add_child(_lbl(""))
+
+	# Visit shipyard button
+	vb.add_child(_lbl(""))
+	var btn := Button.new()
+	btn.text = "OPEN SHIPYARD (%d parts available)" % inventory.size()
+	btn.add_theme_font_size_override("font_size", 13)
+	btn.add_theme_color_override("font_color", _GREEN)
+	btn.custom_minimum_size = Vector2(0, 36)
+	btn.pressed.connect(func() -> void: visit_shipyard.emit(inventory))
+	vb.add_child(btn)
+
+	vb.add_child(_lbl("This will close the port menu so you can access your ship.", 9, _DIM))
+
+
+func _generate_port_inventory(sys_type: String) -> Array:
+	## Generate a random subset of rooms available at this port.
+	## Different system types stock different amounts and leanings.
+	var all_rooms: Array = RoomData.ROOMS.duplicate()
+	all_rooms.shuffle()
+
+	# Base stock size varies by system type
+	var stock_size := 12
+	match sys_type:
+		"station": stock_size = randi_range(15, 22)  # trade stations have more
+		"planet":  stock_size = randi_range(10, 18)
+		"star":    stock_size = randi_range(8, 14)
+		"nebula":  stock_size = randi_range(6, 10)    # remote, sparse
+		"asteroid": stock_size = randi_range(8, 12)
+		"black_hole": stock_size = randi_range(4, 8)  # barely anything
+
+	stock_size = mini(stock_size, all_rooms.size())
+
+	# Always try to include at least one of each essential type
+	var inventory: Array = []
+	var has_type: Dictionary = {}
+	for essential in ["Power", "Engines", "Command"]:
+		for room in all_rooms:
+			if room.get("type", "") == essential and not inventory.has(room):
+				inventory.append(room)
+				has_type[essential] = true
+				break
+
+	# Fill remaining slots randomly
+	for room in all_rooms:
+		if inventory.size() >= stock_size:
+			break
+		if not inventory.has(room):
+			inventory.append(room)
+
+	# Sort by type then cost
+	var type_order := { "Power": 0, "Engines": 1, "Command": 2, "Tactical": 3, "Utility": 4 }
+	inventory.sort_custom(func(a: Dictionary, b: Dictionary) -> bool:
+		var ta: int = type_order.get(a.get("type", ""), 5)
+		var tb: int = type_order.get(b.get("type", ""), 5)
+		if ta != tb:
+			return ta < tb
+		return a.get("cost", 0) < b.get("cost", 0))
+	return inventory
+
+
+# ══════════════════════════════════════════════════════════════════════════════
 # PORT EVENTS — random encounters on arrival
 # ══════════════════════════════════════════════════════════════════════════════
 
@@ -1734,6 +1873,10 @@ func _on_depart() -> void:
 		"abandoned":    abandoned,
 	})
 	queue_free()
+
+
+func get_state() -> Dictionary:
+	return { "credits": _credits, "crew": _crew, "crew_counter": _crew_counter }
 
 
 # ══════════════════════════════════════════════════════════════════════════════
