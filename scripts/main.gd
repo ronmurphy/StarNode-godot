@@ -91,16 +91,21 @@ func _ready() -> void:
 
 
 func _setup_emoji_font() -> void:
-	# Web exports have no OS emoji font — load Noto Emoji as a fallback so
-	# all labels/buttons that don't have explicit fonts still render glyphs.
-	# On desktop Godot already uses the system emoji font automatically.
-	var emoji_font: Font = load("res://assets/fonts/NotoEmoji-Regular.ttf")
+	# Noto Emoji is inserted as the PRIMARY ThemeDB fallback font so Godot
+	# checks it first for every missing glyph (arrows, dingbats, emoji, etc.)
+	# The previous fallback font is chained behind it so normal text still works.
+	# On desktop the OS emoji font is already available; we still load Noto so
+	# symbols like → and ✕ are consistent across platforms.
+	var emoji_font := load("res://assets/fonts/NotoEmoji-Regular.ttf") as FontFile
 	if emoji_font == null:
+		push_warning("NotoEmoji-Regular.ttf not found — emoji may not render on web.")
 		return
-	var fb: Font = ThemeDB.fallback_font
-	var fbs: Array[Font] = fb.get_fallbacks()
-	fbs.append(emoji_font)
-	fb.set_fallbacks(fbs)
+	# Chain: emoji_font → (original fallback) so text chars survive
+	var original_fallback := ThemeDB.fallback_font
+	if original_fallback != null:
+		emoji_font.set_fallbacks([original_fallback])
+	# Replace ThemeDB.fallback_font so all controls pick it up immediately
+	ThemeDB.fallback_font = emoji_font
 
 
 func _setup_display_scale() -> void:
@@ -1630,7 +1635,7 @@ func _build_log_entry(parent: Control, entry: Dictionary) -> void:
 
 	# Header line
 	var hdr := Label.new()
-	hdr.text = "Voyage #%d  —  %s → %s" % [voyage_num, from_name, to_name]
+	hdr.text = "Voyage #%d  --  %s >> %s" % [voyage_num, from_name, to_name]
 	hdr.add_theme_font_size_override("font_size", 12)
 	hdr.add_theme_color_override("font_color", Color(0.75, 0.70, 0.95, 1.0))
 	vb.add_child(hdr)
@@ -2241,7 +2246,7 @@ func _build_job_row(job: Dictionary, popup: PanelContainer) -> PanelContainer:
 
 	# Job type + destination
 	var lbl_title := Label.new()
-	lbl_title.text = "%s → %s" % [job.job_type, job.destination_name]
+	lbl_title.text = "%s >> %s" % [job.job_type, job.destination_name]
 	lbl_title.add_theme_font_size_override("font_size", 12)
 	lbl_title.add_theme_color_override("font_color", Color(0.9, 0.92, 1.0, 1.0))
 	info_vb.add_child(lbl_title)

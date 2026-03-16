@@ -25,8 +25,8 @@ CrewData="*res://scripts/crew_data.gd"
 
 window/size/viewport_width=1280
 window/size/viewport_height=800
-window/size/initial_position_type=2
 window/size/mode=2
+window/size/initial_position_type=2
 window/stretch/mode="canvas_items"
 window/stretch/aspect="keep_height"
 

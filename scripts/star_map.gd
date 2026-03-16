@@ -395,7 +395,7 @@ func _build_from_layout(vis: Node3D, ship_nodes: Array, textures: Dictionary) ->
 			total_pairs += (_adjacencies[uid] as Array).size()
 		total_pairs /= 2  # each pair counted twice
 		if total_pairs > 0:
-			_log("[color=#55cc77]⬡ Hull adjacency: %d room pair%s detected[/color]" % [
+			_log("[color=#55cc77]* Hull adjacency: %d room pair%s detected[/color]" % [
 				total_pairs, "s" if total_pairs != 1 else ""])
 
 	return maxf(max_z, 0.0) + 1.0   # engine glow just behind rearmost room
@@ -1110,7 +1110,7 @@ func _apply_daily_wear() -> void:
 				_find_crew_name(crew, ship_node.node_uid), ship_node.title])
 
 		if adj_red > 0 and _days_elapsed == 1:
-			_log("[color=#55cc77]⬡ Adjacency: -%d wear on %s[/color]" % [adj_red, ship_node.title])
+			_log("[color=#55cc77]* Adjacency: -%d wear on %s[/color]" % [adj_red, ship_node.title])
 
 		if ship_node.current_durability == 0:
 			_log("[color=#ff3311]⚠ CRITICAL: %s has failed![/color]" % ship_node.title)
@@ -1178,7 +1178,7 @@ func _fire_event(ev: Dictionary) -> void:
 					var adj_red := int(float(dmg) * adj_dmg_pct)
 					if adj_red > 0:
 						dmg = maxi(1, dmg - adj_red)
-						_log("[color=#55cc77]⬡ Hull synergy: Tactical adjacency reduced %d damage[/color]" % adj_red)
+						_log("[color=#55cc77]* Hull synergy: Tactical adjacency reduced %d damage[/color]" % adj_red)
 
 				target.apply_damage(dmg)
 				_spawn_explosion(idx)
@@ -1215,7 +1215,7 @@ func _fire_event(ev: Dictionary) -> void:
 				var cadj_red := int(float(cdmg) * cadj_pct)
 				if cadj_red > 0:
 					cdmg = maxi(1, cdmg - cadj_red)
-					_log("[color=#55cc77]⬡ Hull synergy: Tactical adjacency reduced %d damage[/color]" % cadj_red)
+					_log("[color=#55cc77]* Hull synergy: Tactical adjacency reduced %d damage[/color]" % cadj_red)
 
 			# Apply incoming hit
 			if cidx < _ship_nodes_ref.size():
@@ -1276,7 +1276,7 @@ func _fire_event(ev: Dictionary) -> void:
 				var adj_bonus := int(float(amt) * 0.05 * float(cmd_adj_count))
 				if adj_bonus > 0:
 					amt += adj_bonus
-					_log("[color=#55cc77]⬡ Hull synergy: Command adjacency +%d cr[/color]" % adj_bonus)
+					_log("[color=#55cc77]* Hull synergy: Command adjacency +%d cr[/color]" % adj_bonus)
 
 			_earned += amt
 			_log("[color=#44ee88]✔ %s — +%d cr[/color]" % [ev.get("msg", "Bonus"), amt])
