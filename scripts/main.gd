@@ -91,21 +91,27 @@ func _ready() -> void:
 
 
 func _setup_emoji_font() -> void:
-	# Noto Emoji is inserted as the PRIMARY ThemeDB fallback font so Godot
-	# checks it first for every missing glyph (arrows, dingbats, emoji, etc.)
-	# The previous fallback font is chained behind it so normal text still works.
-	# On desktop the OS emoji font is already available; we still load Noto so
-	# symbols like → and ✕ are consistent across platforms.
+	# Load Noto Emoji and add it as a fallback TO the existing fallback font.
+	# This way: Godot checks the control's font first, then ThemeDB.fallback_font
+	# (which still has all Latin/text glyphs), and when a glyph is missing there
+	# it falls through to Noto Emoji for symbols/emoji.
 	var emoji_font := load("res://assets/fonts/NotoEmoji-Regular.ttf") as FontFile
 	if emoji_font == null:
 		push_warning("NotoEmoji-Regular.ttf not found — emoji may not render on web.")
 		return
-	# Chain: emoji_font → (original fallback) so text chars survive
-	var original_fallback := ThemeDB.fallback_font
-	if original_fallback != null:
-		emoji_font.set_fallbacks([original_fallback])
-	# Replace ThemeDB.fallback_font so all controls pick it up immediately
-	ThemeDB.fallback_font = emoji_font
+	# Add emoji font as a fallback OF the existing fallback font
+	var fb := ThemeDB.fallback_font
+	if fb == null:
+		return
+	var existing_fallbacks: Array[Font] = fb.get_fallbacks()
+	# Don't add twice if called again
+	for f in existing_fallbacks:
+		if f == emoji_font:
+			return
+	existing_fallbacks.append(emoji_font)
+	fb.set_fallbacks(existing_fallbacks)
+	# Force ThemeDB to re-notify all controls about the font change
+	ThemeDB.fallback_font = fb
 
 
 func _setup_display_scale() -> void:
