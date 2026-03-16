@@ -91,27 +91,24 @@ func _ready() -> void:
 
 
 func _setup_emoji_font() -> void:
-	# Load Noto Emoji and add it as a fallback TO the existing fallback font.
-	# This way: Godot checks the control's font first, then ThemeDB.fallback_font
-	# (which still has all Latin/text glyphs), and when a glyph is missing there
-	# it falls through to Noto Emoji for symbols/emoji.
+	# Web exports lack an OS emoji font. We wrap the existing ThemeDB fallback
+	# font in a FontVariation, attach Noto Emoji as its fallback, and swap it in.
+	# FontVariation delegates Latin glyphs to its base_font and only consults
+	# the fallback array for missing codepoints (emoji, symbols, dingbats).
 	var emoji_font := load("res://assets/fonts/NotoEmoji-Regular.ttf") as FontFile
 	if emoji_font == null:
-		push_warning("NotoEmoji-Regular.ttf not found — emoji may not render on web.")
+		push_warning("NotoEmoji-Regular.ttf not found -- emoji may not render on web.")
 		return
-	# Add emoji font as a fallback OF the existing fallback font
-	var fb := ThemeDB.fallback_font
-	if fb == null:
+	var original := ThemeDB.fallback_font
+	if original == null:
+		# No fallback font at all — just use emoji font directly
+		ThemeDB.fallback_font = emoji_font
 		return
-	var existing_fallbacks: Array[Font] = fb.get_fallbacks()
-	# Don't add twice if called again
-	for f in existing_fallbacks:
-		if f == emoji_font:
-			return
-	existing_fallbacks.append(emoji_font)
-	fb.set_fallbacks(existing_fallbacks)
-	# Force ThemeDB to re-notify all controls about the font change
-	ThemeDB.fallback_font = fb
+	# Wrap the original font so Latin text keeps working
+	var wrapper := FontVariation.new()
+	wrapper.base_font = original
+	wrapper.set_fallbacks([emoji_font])
+	ThemeDB.fallback_font = wrapper
 
 
 func _setup_display_scale() -> void:
@@ -278,7 +275,7 @@ const CREW_PORTRAITS := {
 	"zester":  "res://assets/pictures/crew/zester_ensign.png",
 	"mika":    "res://assets/pictures/crew/mika_counselor.png",
 	# ── Extended roster ─────────────────────────────────────────────────────
-	"bella":   "res://assets/pictures/crew/bella_twin_inspyrenet.png",
+	"bella":   "res://assets/pictures/crew/bella_twin.png",
 	"rina":    "res://assets/pictures/crew/rina_twin.png",
 	"tumbler": "res://assets/pictures/crew/tumbler_tradeboss.png",
 	"murphy":  "res://assets/pictures/crew/murphy_merchant.png",
