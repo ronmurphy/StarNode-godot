@@ -45,6 +45,8 @@ var _discovered_systems: Array = []   # system IDs the player has charted
 var _traveled_routes:    Array = []   # [[from_id, to_id], ...] for star chart lines
 var _percy_missions_completed: Array = []
 var _active_percy_mission: String = ""
+var _crew_missions_completed: Array = []
+var _active_crew_mission: String = ""
 var _log_overlay: Control = null       # captain's log overlay (if open)
 
 const CARGO_JOB_TYPES: Array = ["Freight", "Smuggling", "Colony Supply"]
@@ -219,11 +221,31 @@ func _build_graph(parent: Control) -> void:
 ## SHIPYARD MODAL — room shopping (replaces the old sidebar)
 ## ─────────────────────────────────────────────────────────────────────────────
 
-const PERCY_PORTRAIT := "res://assets/pictures/crew/percy_commander.png"
+const CREW_PORTRAITS := {
+	"percy":   "res://assets/pictures/crew/percy_commander.png",
+	"roswell": "res://assets/pictures/crew/roswell.png",
+	"shadow":  "res://assets/pictures/crew/shadow_scout.png",
+	"zester":  "res://assets/pictures/crew/zester_ensign.png",
+	"mika":    "res://assets/pictures/crew/mika_counselor.png",
+}
+const CREW_DISPLAY_NAMES := {
+	"percy":   "Commander Percy",
+	"roswell": "Roswell",
+	"shadow":  "Shadow",
+	"zester":  "Ensign Zester",
+	"mika":    "Counselor Mika",
+}
+const CREW_MARKER_COLORS := {
+	"percy":   Color(0.95, 0.55, 0.15),
+	"roswell": Color(0.40, 0.95, 0.40),
+	"shadow":  Color(0.40, 0.70, 0.95),
+	"zester":  Color(0.95, 0.95, 0.30),
+	"mika":    Color(0.85, 0.45, 0.90),
+}
 
 
-func _show_percy_hint(message: String, on_dismiss: Callable = Callable()) -> void:
-	## Quick Percy popup with a message and a dismiss button.
+func _show_crew_hint(crew_id: String, message: String, on_dismiss: Callable = Callable()) -> void:
+	## Quick crew popup with a portrait, message, and a dismiss button.
 	var vp_size := get_viewport().get_visible_rect().size
 	var overlay := Control.new()
 	overlay.top_level = true
@@ -239,10 +261,11 @@ func _show_percy_hint(message: String, on_dismiss: Callable = Callable()) -> voi
 	bg.mouse_filter = Control.MOUSE_FILTER_STOP
 	overlay.add_child(bg)
 
+	var accent_col: Color = CREW_MARKER_COLORS.get(crew_id, CLR_ACCENT)
 	var panel := PanelContainer.new()
 	var style := StyleBoxFlat.new()
 	style.bg_color = CLR_PANEL
-	style.border_color = CLR_ACCENT.darkened(0.3)
+	style.border_color = accent_col.darkened(0.3)
 	style.set_border_width_all(2)
 	style.set_corner_radius_all(8)
 	style.set_content_margin_all(16)
@@ -260,20 +283,22 @@ func _show_percy_hint(message: String, on_dismiss: Callable = Callable()) -> voi
 	hb.add_theme_constant_override("separation", 12)
 	vb.add_child(hb)
 
-	var percy_tex := TextureRect.new()
-	percy_tex.custom_minimum_size = Vector2(64, 64)
-	percy_tex.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
-	percy_tex.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
-	if ResourceLoader.exists(PERCY_PORTRAIT):
-		percy_tex.texture = load(PERCY_PORTRAIT)
-	hb.add_child(percy_tex)
+	var portrait_path: String = CREW_PORTRAITS.get(crew_id, CREW_PORTRAITS.percy)
+	var crew_tex := TextureRect.new()
+	crew_tex.custom_minimum_size = Vector2(64, 64)
+	crew_tex.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+	crew_tex.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+	if ResourceLoader.exists(portrait_path):
+		crew_tex.texture = load(portrait_path)
+	hb.add_child(crew_tex)
 
 	var speech_vb := VBoxContainer.new()
 	speech_vb.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	speech_vb.add_theme_constant_override("separation", 2)
 	hb.add_child(speech_vb)
 
-	speech_vb.add_child(_make_label("Commander Percy", 13, CLR_ACCENT))
+	var display_name: String = CREW_DISPLAY_NAMES.get(crew_id, "Unknown")
+	speech_vb.add_child(_make_label(display_name, 13, accent_col))
 
 	var speech := RichTextLabel.new()
 	speech.bbcode_enabled = true
@@ -342,8 +367,8 @@ func _show_shipyard(show_intro: bool, inventory: Array = []) -> void:
 		percy_tex.custom_minimum_size = Vector2(72, 72)
 		percy_tex.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
 		percy_tex.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
-		if ResourceLoader.exists(PERCY_PORTRAIT):
-			percy_tex.texture = load(PERCY_PORTRAIT)
+		if ResourceLoader.exists(CREW_PORTRAITS.percy):
+			percy_tex.texture = load(CREW_PORTRAITS.percy)
 		intro_hb.add_child(percy_tex)
 
 		var speech_vb := VBoxContainer.new()
@@ -1137,11 +1162,22 @@ func _draw_star_chart(chart: Control) -> void:
 		# Percy mission marker — orange ring
 		var percy_id := _get_percy_mission_at(sys.id as String)
 		if not percy_id.is_empty():
+			var pcol: Color = CREW_MARKER_COLORS.get("percy", Color(0.95, 0.50, 0.15))
 			chart.draw_arc(screen_pos, radius + 8.0, 0.0, TAU, 32,
-				Color(0.95, 0.50, 0.15, 0.85), 2.0, true)
-			# "!" indicator
+				pcol.lerp(Color.WHITE, 0.1), 2.0, true)
 			chart.draw_string(font, screen_pos + Vector2(radius + 8.0, -6.0),
-				"!", HORIZONTAL_ALIGNMENT_LEFT, -1, 12, Color(0.95, 0.50, 0.15, 1.0))
+				"!", HORIZONTAL_ALIGNMENT_LEFT, -1, 12, pcol)
+
+		# Crew mission marker — colored ring per crew member
+		var crew_mid := _get_crew_mission_at(sys.id as String)
+		if not crew_mid.is_empty():
+			var cm := StarMapData.find_crew_mission(crew_mid)
+			var ccol: Color = CREW_MARKER_COLORS.get(cm.get("crew", "") as String, CLR_ACCENT)
+			var ring_r: float = radius + 8.0 if percy_id.is_empty() else radius + 12.0
+			chart.draw_arc(screen_pos, ring_r, 0.0, TAU, 32,
+				ccol.lerp(Color.WHITE, 0.1), 2.0, true)
+			chart.draw_string(font, screen_pos + Vector2(ring_r, -6.0),
+				"!", HORIZONTAL_ALIGNMENT_LEFT, -1, 12, ccol)
 
 		# System dot
 		chart.draw_circle(screen_pos, radius, type_col)
@@ -1182,15 +1218,24 @@ func _chart_input(chart: Control, event: InputEvent, tooltip: RichTextLabel) -> 
 		if ty + 100.0 > chart.size.y:
 			ty = pos.y - 110.0
 		tooltip.position = Vector2(tx, ty)
+		var mission_lines := ""
 		var percy_id := _get_percy_mission_at(hit.id as String)
-		var percy_line := ""
 		if not percy_id.is_empty():
 			var pm := StarMapData.find_percy_mission(percy_id)
-			percy_line = "\n[color=#ff8833]⚠ Percy Mission: %s[/color]\n[color=#ff8833]%s[/color]" % [
+			mission_lines += "\n[color=#ff8833]⚠ Commander Percy: %s[/color]\n[color=#ff8833]%s[/color]" % [
 				pm.get("title", ""), pm.get("desc", "")]
+		var crew_mid := _get_crew_mission_at(hit.id as String)
+		if not crew_mid.is_empty():
+			var cm := StarMapData.find_crew_mission(crew_mid)
+			var cid: String = cm.get("crew", "") as String
+			var cname: String = CREW_DISPLAY_NAMES.get(cid, "Unknown")
+			var ccol: Color = CREW_MARKER_COLORS.get(cid, CLR_ACCENT)
+			var hex := "#%02x%02x%02x" % [int(ccol.r * 255), int(ccol.g * 255), int(ccol.b * 255)]
+			mission_lines += "\n[color=%s]⚠ %s: %s[/color]\n[color=%s]%s[/color]" % [
+				hex, cname, cm.get("title", ""), hex, cm.get("desc", "")]
 		var is_cur: String = "  [color=#ffd050]← YOU ARE HERE[/color]" if (hit.id as String) == _current_system else ""
 		tooltip.text = "[b]%s[/b]%s\nType: %s\n%s%s" % [
-			hit.name, is_cur, (hit.type as String).capitalize(), hit.desc, percy_line]
+			hit.name, is_cur, (hit.type as String).capitalize(), hit.desc, mission_lines]
 
 	elif event is InputEventMouseButton:
 		var mb := event as InputEventMouseButton
@@ -1198,9 +1243,14 @@ func _chart_input(chart: Control, event: InputEvent, tooltip: RichTextLabel) -> 
 			var hit := _chart_hit_test(mb.position, chart.size)
 			if hit.is_empty():
 				return
+			# Percy missions take priority on click
 			var percy_id := _get_percy_mission_at(hit.id as String)
 			if not percy_id.is_empty():
 				_show_percy_mission_dialog(percy_id)
+				return
+			var crew_mid := _get_crew_mission_at(hit.id as String)
+			if not crew_mid.is_empty():
+				_show_crew_mission_dialog(crew_mid)
 
 
 func _show_percy_mission_dialog(mission_id: String) -> void:
@@ -1251,7 +1301,7 @@ func _show_percy_mission_dialog(mission_id: String) -> void:
 	vb.add_child(hb)
 
 	var portrait := TextureRect.new()
-	var tex := load(PERCY_PORTRAIT)
+	var tex := load(CREW_PORTRAITS.percy)
 	if tex:
 		portrait.texture = tex
 	portrait.expand_mode  = TextureRect.EXPAND_FIT_WIDTH_PROPORTIONAL
@@ -1340,6 +1390,151 @@ func _launch_percy_mission() -> void:
 		"job_desc":         m.desc as String,
 		"harsh":            StarMapData.is_harsh(m.location as String),
 		"is_percy":         true,
+	}
+	_launch_flight(job, 0)
+
+
+func _show_crew_mission_dialog(mission_id: String) -> void:
+	var m := StarMapData.find_crew_mission(mission_id)
+	if m.is_empty():
+		return
+	var crew_id: String = m.crew as String
+	var loc_sys := StarMapData.find_system(m.location as String)
+	var loc_name: String = loc_sys.get("name", "Unknown") as String
+	var accent: Color = CREW_MARKER_COLORS.get(crew_id, CLR_ACCENT)
+	var display_name: String = CREW_DISPLAY_NAMES.get(crew_id, "Unknown")
+	var portrait_path: String = CREW_PORTRAITS.get(crew_id, CREW_PORTRAITS.percy)
+
+	# Close captain's log so the dialog is on top
+	if _log_overlay and is_instance_valid(_log_overlay):
+		_log_overlay.queue_free()
+		_log_overlay = null
+
+	var overlay := Control.new()
+	overlay.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	overlay.z_index = 70
+	overlay.mouse_filter = Control.MOUSE_FILTER_STOP
+	add_child(overlay)
+
+	var bg := ColorRect.new()
+	bg.color = Color(0.02, 0.03, 0.06, 0.85)
+	bg.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	overlay.add_child(bg)
+
+	var panel := PanelContainer.new()
+	var ps := StyleBoxFlat.new()
+	ps.bg_color = Color(0.06, 0.08, 0.14, 0.98)
+	ps.border_color = accent.lerp(Color.WHITE, 0.15)
+	ps.border_color.a = 0.8
+	ps.set_border_width_all(2)
+	ps.set_corner_radius_all(8)
+	ps.set_content_margin_all(16)
+	panel.add_theme_stylebox_override("panel", ps)
+	panel.set_anchors_and_offsets_preset(Control.PRESET_CENTER)
+	panel.offset_left = -290
+	panel.offset_right = 290
+	panel.offset_top = -160
+	panel.offset_bottom = 160
+	overlay.add_child(panel)
+
+	var vb := VBoxContainer.new()
+	vb.add_theme_constant_override("separation", 8)
+	panel.add_child(vb)
+
+	var hb := HBoxContainer.new()
+	hb.add_theme_constant_override("separation", 12)
+	vb.add_child(hb)
+
+	var portrait := TextureRect.new()
+	if ResourceLoader.exists(portrait_path):
+		portrait.texture = load(portrait_path)
+	portrait.expand_mode  = TextureRect.EXPAND_FIT_WIDTH_PROPORTIONAL
+	portrait.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+	portrait.custom_minimum_size = Vector2(64, 64)
+	hb.add_child(portrait)
+
+	var speech_vb := VBoxContainer.new()
+	speech_vb.add_theme_constant_override("separation", 4)
+	speech_vb.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	hb.add_child(speech_vb)
+
+	var lbl_name := Label.new()
+	lbl_name.text = display_name
+	lbl_name.add_theme_font_size_override("font_size", 12)
+	lbl_name.add_theme_color_override("font_color", accent)
+	speech_vb.add_child(lbl_name)
+
+	var speech := RichTextLabel.new()
+	speech.bbcode_enabled = true
+	speech.fit_content = true
+	speech.scroll_active = false
+	speech.text = m.crew_msg as String
+	speech.add_theme_font_size_override("normal_font_size", 11)
+	speech.add_theme_color_override("default_color", Color(0.75, 0.80, 0.90, 1.0))
+	speech_vb.add_child(speech)
+
+	var details := Label.new()
+	details.text = "「 %s 」  —  %s  |  ~%d days  |  Reward: %d cr" % [
+		m.title, loc_name, m.days as int, m.reward as int]
+	details.add_theme_font_size_override("font_size", 11)
+	details.add_theme_color_override("font_color", accent.lightened(0.3))
+	details.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	vb.add_child(details)
+
+	var desc := Label.new()
+	desc.text = m.desc as String
+	desc.add_theme_font_size_override("font_size", 10)
+	desc.add_theme_color_override("font_color", CLR_DIM)
+	desc.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	desc.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	vb.add_child(desc)
+
+	var btn_row := HBoxContainer.new()
+	btn_row.add_theme_constant_override("separation", 10)
+	btn_row.alignment = BoxContainer.ALIGNMENT_CENTER
+	vb.add_child(btn_row)
+
+	var btn_accept := Button.new()
+	btn_accept.text = "Accept Mission"
+	btn_accept.custom_minimum_size = Vector2(140, 32)
+	btn_accept.add_theme_font_size_override("font_size", 12)
+	btn_accept.add_theme_color_override("font_color", Color(0.40, 0.95, 0.55, 1.0))
+	btn_accept.pressed.connect(func() -> void:
+		_active_crew_mission = mission_id
+		overlay.queue_free()
+		_launch_crew_mission())
+	btn_row.add_child(btn_accept)
+
+	var btn_decline := Button.new()
+	btn_decline.text = "Not Now"
+	btn_decline.custom_minimum_size = Vector2(100, 32)
+	btn_decline.add_theme_font_size_override("font_size", 11)
+	btn_decline.add_theme_color_override("font_color", Color(0.65, 0.55, 0.55, 1.0))
+	btn_decline.pressed.connect(func() -> void:
+		overlay.queue_free()
+		_show_captains_log_chart())
+	btn_row.add_child(btn_decline)
+
+
+func _launch_crew_mission() -> void:
+	## Builds a synthetic job dict and launches a crew member mission flight.
+	var m := StarMapData.find_crew_mission(_active_crew_mission)
+	if m.is_empty():
+		return
+	var crew_id: String = m.crew as String
+	var display_name: String = CREW_DISPLAY_NAMES.get(crew_id, "Unknown")
+	var loc_sys := StarMapData.find_system(m.location as String)
+	var job := {
+		"destination_id":   m.location as String,
+		"destination_name": loc_sys.get("name", "Unknown") as String,
+		"days":             m.days as int,
+		"pay_per_day":      (m.reward as int) / maxi(1, m.days as int),
+		"total_pay":        m.reward as int,
+		"job_type":         "%s Mission" % display_name,
+		"job_desc":         m.desc as String,
+		"harsh":            StarMapData.is_harsh(m.location as String),
+		"is_crew_mission":  true,
+		"crew_mission_id":  _active_crew_mission,
 	}
 	_launch_flight(job, 0)
 
@@ -1538,6 +1733,8 @@ func _on_new_ship() -> void:
 	_traveled_routes.clear()
 	_percy_missions_completed.clear()
 	_active_percy_mission = ""
+	_crew_missions_completed.clear()
+	_active_crew_mission = ""
 	_init_discovery()
 	txt_ship_name.text = ship_name
 	_update_header()
@@ -1602,6 +1799,49 @@ func _get_available_percy_missions() -> Array:
 func _get_percy_mission_at(system_id: String) -> String:
 	## Returns the percy mission ID available at this system, or "".
 	for m in _get_available_percy_missions():
+		if (m.location as String) == system_id:
+			return m.id as String
+	return ""
+
+
+func _get_available_crew_missions() -> Array:
+	## Returns crew missions whose triggers are met and not completed/active.
+	## Enforces per-crew sequential order (each crew's chain is independent).
+	var available: Array = []
+	for m in StarMapData.CREW_MISSIONS:
+		var mid: String = m.id as String
+		if _crew_missions_completed.has(mid):
+			continue
+		if _active_crew_mission == mid:
+			continue
+		# Sequential within same crew: previous mission by this crew must be done
+		var crew_id: String = m.crew as String
+		var idx_in_crew: int = 0
+		var prev_mid: String = ""
+		for other in StarMapData.CREW_MISSIONS:
+			if (other.crew as String) == crew_id:
+				if (other.id as String) == mid:
+					break
+				prev_mid = other.id as String
+				idx_in_crew += 1
+		if not prev_mid.is_empty() and not _crew_missions_completed.has(prev_mid):
+			continue
+		# Check trigger
+		var trigger: Dictionary = m.get("trigger", {})
+		var ttype: String = trigger.get("type", "") as String
+		if ttype == "jobs_completed":
+			if _jobs_completed < (trigger.get("value", 999) as int):
+				continue
+		elif ttype == "system_discovered":
+			if not _discovered_systems.has(trigger.get("value", "") as String):
+				continue
+		available.append(m)
+	return available
+
+
+func _get_crew_mission_at(system_id: String) -> String:
+	## Returns the first available crew mission ID at this system, or "".
+	for m in _get_available_crew_missions():
 		if (m.location as String) == system_id:
 			return m.id as String
 	return ""
@@ -1675,6 +1915,8 @@ func _save_to_file(path: String) -> void:
 		"traveled_routes":          _traveled_routes,
 		"percy_missions_completed": _percy_missions_completed,
 		"active_percy_mission":     _active_percy_mission,
+		"crew_missions_completed":  _crew_missions_completed,
+		"active_crew_mission":      _active_crew_mission,
 		"nodes":          nodes_data,
 		"connections":    conn_data,
 	}
@@ -1721,6 +1963,8 @@ func _load_from_file(path: String) -> void:
 	_traveled_routes          = data.get("traveled_routes", [])
 	_percy_missions_completed = data.get("percy_missions_completed", [])
 	_active_percy_mission     = (data.get("active_percy_mission", "") as String)
+	_crew_missions_completed  = data.get("crew_missions_completed", [])
+	_active_crew_mission      = (data.get("active_crew_mission", "") as String)
 	_init_discovery()   # migration for old saves without discovery data
 
 	# Sanitize crew status — clear any in-progress states from a mid-session save
@@ -1836,6 +2080,14 @@ func _show_job_board(listings: Array) -> void:
 		if not pm.is_empty() and (pm.location as String) == _current_system:
 			var percy_row := _build_percy_job_row(pm, popup)
 			vb.add_child(percy_row)
+			vb.add_child(HSeparator.new())
+
+	# Crew mission at this location
+	if not _active_crew_mission.is_empty():
+		var cm := StarMapData.find_crew_mission(_active_crew_mission)
+		if not cm.is_empty() and (cm.location as String) == _current_system:
+			var crew_row := _build_crew_job_row(cm, popup)
+			vb.add_child(crew_row)
 			vb.add_child(HSeparator.new())
 
 	# Job listings
@@ -1985,6 +2237,66 @@ func _build_percy_job_row(pm: Dictionary, popup: PanelContainer) -> PanelContain
 	return row_panel
 
 
+func _build_crew_job_row(cm: Dictionary, popup: PanelContainer) -> PanelContainer:
+	var crew_id: String = cm.get("crew", "") as String
+	var accent: Color = CREW_MARKER_COLORS.get(crew_id, CLR_ACCENT)
+	var display_name: String = CREW_DISPLAY_NAMES.get(crew_id, "Unknown")
+
+	var row_panel := PanelContainer.new()
+	var row_style := StyleBoxFlat.new()
+	row_style.bg_color = Color(accent.r * 0.12, accent.g * 0.12, accent.b * 0.12, 1.0)
+	row_style.border_color = accent.lerp(Color.WHITE, 0.1)
+	row_style.border_color.a = 0.7
+	row_style.set_border_width_all(2)
+	row_style.set_corner_radius_all(4)
+	row_style.set_content_margin_all(10)
+	row_panel.add_theme_stylebox_override("panel", row_style)
+
+	var hb := HBoxContainer.new()
+	hb.add_theme_constant_override("separation", 12)
+	row_panel.add_child(hb)
+
+	var info_vb := VBoxContainer.new()
+	info_vb.add_theme_constant_override("separation", 2)
+	info_vb.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	hb.add_child(info_vb)
+
+	var lbl_title := Label.new()
+	lbl_title.text = "⚠ %s — %s" % [display_name.to_upper(), cm.title as String]
+	lbl_title.add_theme_font_size_override("font_size", 12)
+	lbl_title.add_theme_color_override("font_color", accent)
+	info_vb.add_child(lbl_title)
+
+	var lbl_desc := Label.new()
+	lbl_desc.text = cm.desc as String
+	lbl_desc.add_theme_font_size_override("font_size", 10)
+	lbl_desc.add_theme_color_override("font_color", Color(0.70, 0.65, 0.55, 1.0))
+	lbl_desc.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	info_vb.add_child(lbl_desc)
+
+	var lbl_stats := Label.new()
+	lbl_stats.text = "~%d days  |  Reward: %d cr" % [cm.days as int, cm.reward as int]
+	lbl_stats.add_theme_font_size_override("font_size", 10)
+	lbl_stats.add_theme_color_override("font_color", accent.lightened(0.3))
+	info_vb.add_child(lbl_stats)
+
+	var mid: String = cm.id as String
+	var btn := Button.new()
+	btn.text = "Launch"
+	btn.custom_minimum_size = Vector2(70, 32)
+	btn.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+	btn.add_theme_font_size_override("font_size", 11)
+	btn.add_theme_color_override("font_color", accent)
+	btn.pressed.connect(func() -> void:
+		popup.queue_free()
+		_job_board_popup = null
+		_active_crew_mission = mid
+		_launch_crew_mission())
+	hb.add_child(btn)
+
+	return row_panel
+
+
 func _accept_job(job: Dictionary) -> void:
 	# Show cargo puzzle if this is a cargo-type job and player has cargo holds
 	if CARGO_JOB_TYPES.has(job.job_type) and _count_cargo_holds() > 0:
@@ -2044,6 +2356,7 @@ func _launch_flight(job: Dictionary, cargo_bonus: int) -> void:
 		"cargo_bonus":     cargo_bonus,
 		"discovered":      _discovered_systems,
 		"is_percy":        job.get("is_percy", false),
+		"is_crew_mission": job.get("is_crew_mission", false),
 	})
 	add_child(star_map)
 	star_map.job_finished.connect(_on_job_finished)
@@ -2145,20 +2458,48 @@ func _on_job_finished(result: Dictionary) -> void:
 			_toast("Mission complete! New systems charted: %s" % ", ".join(names))
 		var _result := result
 		var _wages := wages
-		_show_percy_hint(
+		_show_crew_hint("percy",
 			"\"Outstanding work, Captain. The data we recovered will " +
 			"change everything. Stand by — I'll have new orders soon.\"",
 			func(): _open_port_after_job(_result, _wages))
 		return
 
-	# ── Percy mission nudge — notify if a new mission became available ──
-	if not is_percy:
-		var avail := _get_available_percy_missions()
-		if not avail.is_empty():
-			var next_m: Dictionary = avail[0]
+	# ── Crew mission completion ──
+	var is_crew_m: bool = result.get("is_crew_mission", false)
+	if is_crew_m and _active_crew_mission != "":
+		var cm := StarMapData.find_crew_mission(_active_crew_mission)
+		var crew_id: String = cm.get("crew", "") as String
+		_crew_missions_completed.append(_active_crew_mission)
+		_active_crew_mission = ""
+		var bonus_sys: Array = cm.get("on_complete_discover", [])
+		for sid in bonus_sys:
+			if not _discovered_systems.has(sid as String):
+				_discovered_systems.append(sid)
+		if not bonus_sys.is_empty():
+			var names: Array = []
+			for sid in bonus_sys:
+				var s := StarMapData.find_system(sid as String)
+				if not s.is_empty():
+					names.append(s.name as String)
+			_toast("Mission complete! New systems charted: %s" % ", ".join(names))
+		var display_name: String = CREW_DISPLAY_NAMES.get(crew_id, "Unknown")
+		var _result := result
+		var _wages := wages
+		_show_crew_hint(crew_id,
+			"\"That was something, Captain. %s reporting mission complete. " % display_name +
+			"I'll let you know if anything else comes up.\"",
+			func(): _open_port_after_job(_result, _wages))
+		return
+
+	# ── Mission nudges — notify if a new mission became available ──
+	# Percy nudge takes priority, then crew nudge (only show one per arrival)
+	if not is_percy and not is_crew_m:
+		var percy_avail := _get_available_percy_missions()
+		if not percy_avail.is_empty():
+			var next_m: Dictionary = percy_avail[0]
 			var _result := result
 			var _wages := wages
-			_show_percy_hint(
+			_show_crew_hint("percy",
 				"\"Captain, I've got something for you. Check the " +
 				"[color=#ffd050]Star Chart[/color] in your log — " +
 				"system [color=#4fdf8c]%s[/color].\"" % (
@@ -2167,11 +2508,28 @@ func _on_job_finished(result: Dictionary) -> void:
 				func(): _open_port_after_job(_result, _wages))
 			return
 
+		var crew_avail := _get_available_crew_missions()
+		if not crew_avail.is_empty():
+			var next_cm: Dictionary = crew_avail[0]
+			var cid: String = next_cm.get("crew", "") as String
+			var cname: String = CREW_DISPLAY_NAMES.get(cid, "Someone")
+			var loc_name: String = StarMapData.find_system(
+				next_cm.location as String).get("name", "unknown")
+			var _result := result
+			var _wages := wages
+			_show_crew_hint(cid,
+				"\"Captain, got a minute? Check the " +
+				"[color=#ffd050]Star Chart[/color] — " +
+				"system [color=#4fdf8c]%s[/color]. " % loc_name +
+				"%s has something to say.\"" % cname,
+				func(): _open_port_after_job(_result, _wages))
+			return
+
 	# Percy's crew hint after the very first job — defer port until dismissed
 	if _jobs_completed == 1:
 		var _result := result
 		var _wages := wages
-		_show_percy_hint(
+		_show_crew_hint("percy",
 			"\"Good work, Captain! Now that you've docked at a new port, " +
 			"head to the [color=#4fdf8c]Crew[/color] tab — you can " +
 			"[color=#ffd050]hire crew[/color] here. More hands means " +

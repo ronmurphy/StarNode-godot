@@ -1453,6 +1453,7 @@ func _finish_travel() -> void:
 			"days":           days,
 			"wages":          wages,
 			"is_percy":       _params.get("is_percy", false),
+			"is_crew_mission": _params.get("is_crew_mission", false),
 		})
 		queue_free()
 	)
