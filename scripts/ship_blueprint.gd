@@ -115,7 +115,7 @@ func _draw() -> void:
 	var nodes := _gather_nodes()
 	if nodes.is_empty():
 		draw_string(font, Vector2(w * 0.5, h * 0.5 + 5.0),
-			"— no rooms —",
+			"-- no rooms --",
 			HORIZONTAL_ALIGNMENT_CENTER, -1, fsz, _DIM.darkened(0.35))
 		return
 

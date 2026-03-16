@@ -132,7 +132,7 @@ func _ready() -> void:
 # ── UI builders ───────────────────────────────────────────────────────────────
 func _build_header(parent: Control) -> void:
 	var header := Label.new()
-	header.text = "📦  CARGO LOADING  —  %s" % _job_type.to_upper()
+	header.text = "CARGO LOADING  --  %s" % _job_type.to_upper()
 	header.add_theme_font_size_override("font_size", 20)
 	header.add_theme_color_override("font_color", Color(0.92, 0.85, 0.50, 1.0))
 	header.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
@@ -183,7 +183,7 @@ func _build_queue_panel(parent: Control) -> void:
 	vb.add_child(lbl)
 
 	var warn := Label.new()
-	warn.text = "⚠ Won't all fit — choose wisely!"
+	warn.text = "[!] Won't all fit -- choose wisely!"
 	warn.add_theme_font_size_override("font_size", 10)
 	warn.add_theme_color_override("font_color", Color(0.95, 0.65, 0.30, 1.0))
 	warn.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
@@ -293,14 +293,14 @@ func _build_bottom_bar(parent: Control) -> void:
 	parent.add_child(bar)
 
 	var btn_rot := Button.new()
-	btn_rot.text = "↻ Rotate (R)"
+	btn_rot.text = "Rotate (R)"
 	btn_rot.custom_minimum_size = Vector2(110, 30)
 	btn_rot.add_theme_font_size_override("font_size", 11)
 	btn_rot.pressed.connect(_rotate_selected)
 	bar.add_child(btn_rot)
 
 	var btn_clear := Button.new()
-	btn_clear.text = "✕ Remove Selected"
+	btn_clear.text = "X Remove Selected"
 	btn_clear.custom_minimum_size = Vector2(130, 30)
 	btn_clear.add_theme_font_size_override("font_size", 11)
 	btn_clear.pressed.connect(_clear_selected)
@@ -328,7 +328,7 @@ func _build_bottom_bar(parent: Control) -> void:
 
 	# Confirm
 	_btn_confirm = Button.new()
-	_btn_confirm.text = "✔ Launch"
+	_btn_confirm.text = "Launch"
 	_btn_confirm.custom_minimum_size = Vector2(100, 30)
 	_btn_confirm.add_theme_font_size_override("font_size", 11)
 	_btn_confirm.add_theme_color_override("font_color", Color(0.40, 0.95, 0.55, 1.0))
@@ -389,7 +389,7 @@ func _refresh_queue_panel() -> void:
 
 		var lbl_detail := Label.new()
 		lbl_detail.text = "%d cells · %d cr%s" % [pcells.size(), pvalue,
-			"  ✔" if is_placed else ""]
+			"  [ok]" if is_placed else ""]
 		lbl_detail.add_theme_font_size_override("font_size", 9)
 		lbl_detail.add_theme_color_override("font_color",
 			Color(0.45, 0.80, 0.45, 0.8) if is_placed else Color(0.60, 0.65, 0.78, 1.0))

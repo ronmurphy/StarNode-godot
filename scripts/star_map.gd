@@ -612,18 +612,18 @@ func _build_hud() -> void:
 
 	_add_sp(hbox, 10)
 
-	var lbl_tag := _hlabel("◈ IN TRANSIT", 10, Color(0.50, 0.78, 1.0, 1.0))
+	var lbl_tag := _hlabel(":: IN TRANSIT", 10, Color(0.50, 0.78, 1.0, 1.0))
 	lbl_tag.size_flags_vertical = Control.SIZE_SHRINK_CENTER
 	hbox.add_child(lbl_tag)
 
 	hbox.add_child(_vsep())
 
-	_lbl_system = _hlabel("—", 15, Color(0.90, 0.95, 1.0, 1.0))
+	_lbl_system = _hlabel("--", 15, Color(0.90, 0.95, 1.0, 1.0))
 	hbox.add_child(_lbl_system)
 
 	hbox.add_child(_vsep())
 
-	_lbl_route = _hlabel("→  —", 11, Color(0.60, 0.75, 0.95, 1.0))
+	_lbl_route = _hlabel(">>  --", 11, Color(0.60, 0.75, 0.95, 1.0))
 	hbox.add_child(_lbl_route)
 
 	# Expand filler
@@ -637,7 +637,7 @@ func _build_hud() -> void:
 	hbox.add_child(_vsep())
 
 	_btn_speed = Button.new()
-	_btn_speed.text = "▶  1×"
+	_btn_speed.text = ">  1x"
 	_btn_speed.flat = true
 	_btn_speed.add_theme_color_override("font_color", Color(0.70, 0.90, 1.0, 1.0))
 	_btn_speed.add_theme_font_size_override("font_size", 12)
@@ -794,22 +794,22 @@ func _init_job() -> void:
 
 	# ── HUD initial state ────────────────────────────────────────────────────
 	_lbl_system.text = _wp_names[0]
-	_lbl_route.text  = "→  " + _wp_names[-1]
+	_lbl_route.text  = ">>  " + _wp_names[-1]
 	_lbl_day.text    = "Day 1 / %d" % days
 
 	# ── Opening log ──────────────────────────────────────────────────────────
 	var job_type: String = _params.get("job_type", "")
-	var job_label: String = "  —  %d-day voyage to %s" % [days, _wp_names[-1]]
+	var job_label: String = "  --  %d-day voyage to %s" % [days, _wp_names[-1]]
 	if not job_type.is_empty():
-		job_label = "  —  %s  —  %d days to %s" % [job_type, days, _wp_names[-1]]
-	_log("[color=#4488ff]═══  %s%s  ═══[/color]" % [name_str, job_label])
+		job_label = "  --  %s  --  %d days to %s" % [job_type, days, _wp_names[-1]]
+	_log("[color=#4488ff]===  %s%s  ===[/color]" % [name_str, job_label])
 	_log("[color=#6688cc]  Departing %s. Engines spooling up…[/color]" % origin_name)
 	# Show real waypoints (skip the 2 cinematic entries at the front)
 	if _wp_names.size() > _n_cinematic_segs + 2:
 		var stops := _wp_names.slice(_n_cinematic_segs + 1, -1)
 		_log("[color=#6677aa]  Via: %s[/color]" % ", ".join(stops))
 	if pwr < 0:
-		_log("[color=#ff6644]⚠ Negative power grid — earnings reduced.[/color]")
+		_log("[color=#ff6644][!] Negative power grid -- earnings reduced.[/color]")
 
 	# ── Begin travel ─────────────────────────────────────────────────────────
 	_seg_duration = _calc_seg_duration(0, days)
@@ -960,7 +960,7 @@ func _process(delta: float) -> void:
 				# First real waypoint — origin system, course now locked
 				_log("[color=#88aaff]  Course locked. Initiating FTL burn.[/color]")
 			elif _wp_index > _n_cinematic_segs:
-				_log("[color=#aaccff]→ Passing through %s[/color]" % _wp_names[_wp_index])
+				_log("[color=#aaccff]>> Passing through %s[/color]" % _wp_names[_wp_index])
 
 
 func _update_camera(delta: float, forward: Vector3) -> void:
@@ -1106,14 +1106,14 @@ func _apply_daily_wear() -> void:
 		ship_node.apply_damage(wear)
 
 		if crew_reduced and wear > 0 and _days_elapsed == 1:
-			_log("[color=#44aaff]🔧 %s reduces wear on %s[/color]" % [
+			_log("[color=#44aaff][wrench] %s reduces wear on %s[/color]" % [
 				_find_crew_name(crew, ship_node.node_uid), ship_node.title])
 
 		if adj_red > 0 and _days_elapsed == 1:
 			_log("[color=#55cc77]* Adjacency: -%d wear on %s[/color]" % [adj_red, ship_node.title])
 
 		if ship_node.current_durability == 0:
-			_log("[color=#ff3311]⚠ CRITICAL: %s has failed![/color]" % ship_node.title)
+			_log("[color=#ff3311][!] CRITICAL: %s has failed![/color]" % ship_node.title)
 
 
 func _find_crew_name(crew: Array, node_uid: String) -> String:
@@ -1155,10 +1155,10 @@ func _fire_event(ev: Dictionary) -> void:
 				if sec_eff > 0.0:
 					var reduction := int(float(dmg) * sec_eff * 0.3)
 					dmg = maxi(1, dmg - reduction)
-					_log("[color=#44aaff]🛡 Security crew mitigated %d damage[/color]" % reduction)
+					_log("[color=#44aaff][shield] Security crew mitigated %d damage[/color]" % reduction)
 
-				# Adjacency bonus: Tactical adjacent to Command → extra 10% dmg reduction
-				# Tactical adjacent to Power → extra 5% reduction
+				# Adjacency bonus: Tactical adjacent to Command = extra 10% dmg reduction
+				# Tactical adjacent to Power = extra 5% reduction
 				var adj_dmg_pct := 0.0
 				for node in _ship_nodes_ref:
 					var sn := node as ShipNode
@@ -1184,7 +1184,7 @@ func _fire_event(ev: Dictionary) -> void:
 				_spawn_explosion(idx)
 				_earned -= randi_range(50, 180)
 				_earned  = maxi(0, _earned)
-				_log("[color=#ff5533]⚠ Combat! -%d dur to [b]%s[/b].[/color]" % [dmg, target.title])
+				_log("[color=#ff5533][!] Combat! -%d dur to [b]%s[/b].[/color]" % [dmg, target.title])
 		"combat":
 			var cidx: int        = ev.get("target_idx", 0)
 			var attacker: String = ev.get("attacker", "Unknown")
@@ -1195,7 +1195,7 @@ func _fire_event(ev: Dictionary) -> void:
 			if sec_eff2 > 0.0:
 				var creduction := int(float(cdmg) * sec_eff2 * 0.3)
 				cdmg = maxi(1, cdmg - creduction)
-				_log("[color=#44aaff]🛡 Security crew mitigated %d damage[/color]" % creduction)
+				_log("[color=#44aaff][shield] Security crew mitigated %d damage[/color]" % creduction)
 
 			# Tactical adjacency damage reduction
 			var cadj_pct := 0.0
@@ -1222,7 +1222,7 @@ func _fire_event(ev: Dictionary) -> void:
 				var ctarget := _ship_nodes_ref[cidx] as ShipNode
 				ctarget.apply_damage(cdmg)
 				_spawn_explosion(cidx)
-				_log("[color=#ff5533]⚠ [b]%s[/b] attacking! -%d dur to [b]%s[/b][/color]" \
+				_log("[color=#ff5533][!] [b]%s[/b] attacking! -%d dur to [b]%s[/b][/color]" \
 					% [attacker, cdmg, ctarget.title])
 			_earned -= randi_range(50, 180)
 			_earned  = maxi(0, _earned)
@@ -1233,24 +1233,24 @@ func _fire_event(ev: Dictionary) -> void:
 				_log("[color=#888888]  No Tactical systems to return fire.[/color]")
 			else:
 				var tac_count := _count_effective_tactical()
-				_log("[color=#88ccff]🎯 %d Tactical room(s) engaging... (%.0f%% hit)[/color]" \
+				_log("[color=#88ccff][target] %d Tactical room(s) engaging... (%.0f%% hit)[/color]" \
 					% [tac_count, hit_pct * 100.0])
 				if randf() < hit_pct:
 					var salvage := randi_range(ev.get("sal_min", 50), ev.get("sal_max", 200))
 					_earned += salvage
 					_spawn_counter_shot(true)
-					_log("[color=#44ff88]💥 Direct hit! [b]%s[/b] destroyed.[/color]" % attacker)
+					_log("[color=#44ff88]** Direct hit! [b]%s[/b] destroyed.[/color]" % attacker)
 					_log("[color=#ffd050]  Salvage recovered: +%d cr[/color]" % salvage)
 				else:
 					_spawn_counter_shot(false)
-					_log("[color=#ff8844]✗ Missed! [b]%s[/b] returns fire![/color]" % attacker)
+					_log("[color=#ff8844]X Missed! [b]%s[/b] returns fire![/color]" % attacker)
 					if not _ship_nodes_ref.is_empty():
 						var tgt2 := randi_range(0, _ship_nodes_ref.size() - 1)
 						var t2   := _ship_nodes_ref[tgt2] as ShipNode
 						var dmg2 := randi_range(3, 14)
 						t2.apply_damage(dmg2)
 						_spawn_explosion(tgt2)
-						_log("[color=#ff3311]⚠ Retaliation! -%d dur to [b]%s[/b][/color]" \
+						_log("[color=#ff3311][!] Retaliation! -%d dur to [b]%s[/b][/color]" \
 							% [dmg2, t2.title])
 		"bonus":
 			var amt: int = ev.get("amount", 100)
@@ -1260,7 +1260,7 @@ func _fire_event(ev: Dictionary) -> void:
 			if off_eff > 0.0:
 				var bonus_extra := int(float(amt) * off_eff * 0.2)
 				amt += bonus_extra
-				_log("[color=#44aaff]📋 Officer negotiated +%d cr bonus[/color]" % bonus_extra)
+				_log("[color=#44aaff][+] Officer negotiated +%d cr bonus[/color]" % bonus_extra)
 
 			# Adjacency bonus: Command adjacent to any room → +5% payout per neighbor (max +15%)
 			var cmd_adj_count := 0
@@ -1279,7 +1279,7 @@ func _fire_event(ev: Dictionary) -> void:
 					_log("[color=#55cc77]* Hull synergy: Command adjacency +%d cr[/color]" % adj_bonus)
 
 			_earned += amt
-			_log("[color=#44ee88]✔ %s — +%d cr[/color]" % [ev.get("msg", "Bonus"), amt])
+			_log("[color=#44ee88][OK] %s -- +%d cr[/color]" % [ev.get("msg", "Bonus"), amt])
 		"routine":
 			_log("[color=#556677]  Routine transit.[/color]")
 
@@ -1431,11 +1431,11 @@ func _spawn_impact_flash(pos: Vector3) -> void:
 func _finish_travel() -> void:
 	var days: int = _params.get("days", 7)
 	_lbl_system.text = _wp_names[-1]
-	_lbl_route.text  = "✔ Arrived"
+	_lbl_route.text  = "[OK] Arrived"
 	_lbl_day.text    = "Day %d / %d" % [days, days]
 
 	_log("")
-	_log("[color=#ffd050]═══  Arrived at %s  ═══[/color]" % _wp_names[-1])
+	_log("[color=#ffd050]===  Arrived at %s  ===[/color]" % _wp_names[-1])
 	_log("[color=#ffd050]Net earned: %s credits[/color]" % _earned)
 
 	var t := create_tween()
@@ -1461,6 +1461,6 @@ func _finish_travel() -> void:
 
 func _cycle_speed() -> void:
 	match _time_scale:
-		1.0: _time_scale = 2.0; _btn_speed.text = "▶▶ 2×"
-		2.0: _time_scale = 4.0; _btn_speed.text = "▶▶▶ 4×"
-		_:   _time_scale = 1.0; _btn_speed.text = "▶  1×"
+		1.0: _time_scale = 2.0; _btn_speed.text = ">> 2x"
+		2.0: _time_scale = 4.0; _btn_speed.text = ">>> 4x"
+		_:   _time_scale = 1.0; _btn_speed.text = ">  1x"

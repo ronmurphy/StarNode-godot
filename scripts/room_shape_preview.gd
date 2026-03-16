@@ -23,7 +23,7 @@ func _draw() -> void:
 
 	if _def.is_empty():
 		draw_string(ThemeDB.fallback_font, Vector2(c.x, c.y + 4.0),
-			"—", HORIZONTAL_ALIGNMENT_CENTER, -1, 10,
+			"--", HORIZONTAL_ALIGNMENT_CENTER, -1, 10,
 			Color(0.35, 0.42, 0.58, 0.55))
 		return
 

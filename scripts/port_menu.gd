@@ -1651,7 +1651,7 @@ func _execute_port_event(event_id: String, sys_name: String) -> void:
 			choices.append({ "label": "Noted", "action": func() -> void: _show_tab(_current_tab) })
 
 		"mysterious_package":
-			icon  = "📦"
+			icon  = "[box]"
 			title = "MYSTERIOUS PACKAGE"
 			text  = "A hooded figure left a sealed crate at your docking bay with a note: \"Don't open until you're in deep space.\" Do you take it?"
 			color = _PURPLE
@@ -1661,23 +1661,23 @@ func _execute_port_event(event_id: String, sys_name: String) -> void:
 					var loot := randi_range(80, 250)
 					_credits += loot
 					_refresh_credits()
-					_show_event_followup("📦", "CRATE OPENED",
+					_show_event_followup("[box]", "CRATE OPENED",
 						"Inside: a stash of rare components worth %d cr. Lucky find." % loot, _GREEN)
 				elif outcome < 70:
 					_crew_counter += 1
 					var recruit := CrewData.generate_crew("", _crew_counter)
 					_crew.append(recruit)
-					_show_event_followup("📦", "CRATE OPENED",
+					_show_event_followup("[box]", "CRATE OPENED",
 						"It's... a cryo pod? %s (%s) thaws out and offers to join your crew." % [
 							recruit.name, recruit.role], _ACCENT)
 				elif outcome < 90:
-					_show_event_followup("📦", "CRATE OPENED",
+					_show_event_followup("[box]", "CRATE OPENED",
 						"Empty. Just packing foam and a note that says \"GOTCHA\". Waste of time.", _DIM)
 				else:
 					var fine := randi_range(80, 150)
 					_credits = maxi(0, _credits - fine)
 					_refresh_credits()
-					_show_event_followup("📦", "CRATE OPENED",
+					_show_event_followup("[box]", "CRATE OPENED",
 						"Contraband. Station security confiscates it and fines you %d cr." % fine, _RED)
 			})
 			choices.append({ "label": "Leave it alone", "action": func() -> void: pass })
@@ -1749,7 +1749,7 @@ func _execute_port_event(event_id: String, sys_name: String) -> void:
 			choices.append({ "label": "Too risky", "action": func() -> void: pass })
 
 		"hull_scrape":
-			icon  = "💥"
+			icon  = "[!!]"
 			title = "DOCKING DAMAGE"
 			text = "Rough docking conditions at this station scraped your hull during approach."
 			color = _ORANGE
@@ -1768,7 +1768,7 @@ func _execute_port_event(event_id: String, sys_name: String) -> void:
 			choices.append({ "label": "Check the damage report", "action": func() -> void: _show_tab("repair") })
 
 		"crew_bonding":
-			icon  = "🎯"
+			icon  = "[>>]"
 			title = "CREW BONDING"
 			var boosted: Array = []
 			for cm in _crew:

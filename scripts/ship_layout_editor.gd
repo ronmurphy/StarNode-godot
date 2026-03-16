@@ -777,7 +777,7 @@ func _build_texture_panel(parent: Control) -> void:
 	vb.add_child(title)
 
 	_lbl_tex_name = Label.new()
-	_lbl_tex_name.text = "—"
+	_lbl_tex_name.text = "--"
 	_lbl_tex_name.add_theme_font_size_override("font_size", 9)
 	_lbl_tex_name.add_theme_color_override("font_color", CLR_DIM)
 	_lbl_tex_name.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
@@ -818,7 +818,7 @@ func _build_texture_panel(parent: Control) -> void:
 	sep2.add_theme_color_override("color", CLR_ACCENT.darkened(0.4))
 	vb.add_child(sep2)
 
-	var btn_clear := _make_btn("✕ Clear", -1, _on_clear_texture)
+	var btn_clear := _make_btn("X Clear", -1, _on_clear_texture)
 	btn_clear.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	btn_clear.add_theme_color_override("font_color", Color(1.0, 0.6, 0.6))
 	vb.add_child(btn_clear)
@@ -860,7 +860,7 @@ func _apply_tex_to_container(container: Node3D, tex_path: String) -> void:
 func _refresh_tex_panel(active_path: String) -> void:
 	if _lbl_tex_name != null:
 		if active_path.is_empty():
-			_lbl_tex_name.text = "—"
+			_lbl_tex_name.text = "--"
 		else:
 			_lbl_tex_name.text = active_path.get_file().get_basename().trim_prefix("tex_").replace("_", " ")
 

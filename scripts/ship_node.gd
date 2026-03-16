@@ -88,7 +88,7 @@ func setup(def: Dictionary, uid: String) -> void:
 	sell_row.add_child(_lbl_sell_value)
 
 	var btn_sell := Button.new()
-	btn_sell.text = "✕ Sell"
+	btn_sell.text = "X Sell"
 	btn_sell.custom_minimum_size = Vector2(52, 20)
 	btn_sell.add_theme_font_size_override("font_size", 10)
 	btn_sell.add_theme_color_override("font_color", Color(1.0, 0.5, 0.5, 1.0))

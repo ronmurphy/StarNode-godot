@@ -90,25 +90,20 @@ func _ready() -> void:
 	_update_header()
 
 
+var _is_web: bool = false
+
 func _setup_emoji_font() -> void:
-	# Web exports lack an OS emoji font. We wrap the existing ThemeDB fallback
-	# font in a FontVariation, attach Noto Emoji as its fallback, and swap it in.
-	# FontVariation delegates Latin glyphs to its base_font and only consults
-	# the fallback array for missing codepoints (emoji, symbols, dingbats).
-	var emoji_font := load("res://assets/fonts/NotoEmoji-Regular.ttf") as FontFile
-	if emoji_font == null:
-		push_warning("NotoEmoji-Regular.ttf not found -- emoji may not render on web.")
-		return
-	var original := ThemeDB.fallback_font
-	if original == null:
-		# No fallback font at all — just use emoji font directly
-		ThemeDB.fallback_font = emoji_font
-		return
-	# Wrap the original font so Latin text keeps working
-	var wrapper := FontVariation.new()
-	wrapper.base_font = original
-	wrapper.set_fallbacks([emoji_font])
-	ThemeDB.fallback_font = wrapper
+	_is_web = OS.has_feature("web")
+	# On desktop, the OS provides emoji glyphs automatically. On web there's no
+	# reliable way to inject an emoji fallback font in Godot's WASM runtime, so
+	# we simply strip emoji prefixes via the _e() helper instead.
+
+
+## Return "emoji text" on desktop, plain "text" on web.
+func _e(emoji: String, text: String) -> String:
+	if _is_web:
+		return text
+	return emoji + " " + text
 
 
 func _setup_display_scale() -> void:
@@ -207,32 +202,32 @@ func _build_header(parent: Control) -> void:
 	lbl_power.mouse_default_cursor_shape = Control.CURSOR_POINTING_HAND
 	hbox.add_child(lbl_power)
 
-	var btn_location := _make_btn("📍 Sol", 115, _on_location_click)
+	var btn_location := _make_btn(_e("📍", "Sol"), 115, _on_location_click)
 	btn_location.add_theme_color_override("font_color", CLR_DIM)
 	lbl_location = btn_location
 	hbox.add_child(btn_location)
 
-	var btn_crew := _make_btn("👥 Crew: 0", 100, _on_crew_click)
+	var btn_crew := _make_btn(_e("👥", "Crew: 0"), 100, _on_crew_click)
 	btn_crew.add_theme_color_override("font_color", Color(0.65, 0.80, 0.95, 1.0))
 	hbox.add_child(btn_crew)
 	lbl_crew = btn_crew
 
 	_add_vsep(hbox)
 
-	var btn_log := _make_btn("📖 Log", 65, _show_captains_log)
+	var btn_log := _make_btn(_e("📖", "Log"), 65, _show_captains_log)
 	btn_log.add_theme_color_override("font_color", Color(0.75, 0.70, 0.95, 1.0))
 	hbox.add_child(btn_log)
 
 	# Shipyard removed from top bar — access only via port merchant or Percy intro
-	#var btn_shipyard := _make_btn("🔧 Shipyard", 90, func(): _show_shipyard(false))
+	#var btn_shipyard := _make_btn("Shipyard", 90, func(): _show_shipyard(false))
 	#btn_shipyard.add_theme_color_override("font_color", Color(0.7, 0.9, 1.0, 1.0))
 	#hbox.add_child(btn_shipyard)
 
-	var btn_3d_layout := _make_btn("🛠️ Designer", 90, _open_3d_layout)
+	var btn_3d_layout := _make_btn(_e("🛠️", "Designer"), 90, _open_3d_layout)
 	btn_3d_layout.add_theme_color_override("font_color", Color(0.85, 0.75, 1.0, 1.0))
 	hbox.add_child(btn_3d_layout)
 
-	var btn_job := _make_btn("📋 Find Job", 100, _on_find_job)
+	var btn_job := _make_btn(_e("📋", "Find Job"), 100, _on_find_job)
 	btn_job.add_theme_color_override("font_color", Color(0.5, 1.0, 0.6, 1.0))
 	hbox.add_child(btn_job)
 
@@ -831,9 +826,9 @@ func _update_header() -> void:
 	lbl_power.text = "Power: %s%d" % ["+" if pwr >= 0 else "", pwr]
 	lbl_power.add_theme_color_override("font_color", CLR_PWR_POS if pwr >= 0 else CLR_PWR_NEG)
 	var sys := StarMapData.find_system(_current_system)
-	lbl_location.text = "📍 %s" % (sys.get("name", "Unknown") if not sys.is_empty() else "Unknown")
+	lbl_location.text = _e("📍", "%s") % (sys.get("name", "Unknown") if not sys.is_empty() else "Unknown")
 	if lbl_crew != null:
-		lbl_crew.text = "👥 Crew: %d" % _crew.size()
+		lbl_crew.text = _e("👥", "Crew: %d") % _crew.size()
 
 
 func _total_power() -> int:
@@ -1027,7 +1022,7 @@ func _show_captains_log() -> void:
 	panel.add_child(vb)
 
 	var title := Label.new()
-	title.text = "📖  CAPTAIN'S LOG  —  %s" % ship_name
+	title.text = _e("📖", " CAPTAIN'S LOG") + "  --  %s" % ship_name
 	title.add_theme_font_size_override("font_size", 16)
 	title.add_theme_color_override("font_color", Color(0.75, 0.70, 0.95, 1.0))
 	vb.add_child(title)
@@ -1044,14 +1039,14 @@ func _show_captains_log() -> void:
 	vb.add_child(content)
 
 	var btn_voyages := Button.new()
-	btn_voyages.text = "📜 Voyages"
+	btn_voyages.text = _e("📜", "Voyages")
 	btn_voyages.custom_minimum_size = Vector2(120, 28)
 	btn_voyages.add_theme_font_size_override("font_size", 11)
 	btn_voyages.pressed.connect(func() -> void: _log_show_voyages(content))
 	tab_bar.add_child(btn_voyages)
 
 	var btn_chart := Button.new()
-	btn_chart.text = "🗺 Star Chart"
+	btn_chart.text = _e("🗺", "Star Chart")
 	btn_chart.custom_minimum_size = Vector2(120, 28)
 	btn_chart.add_theme_font_size_override("font_size", 11)
 	btn_chart.pressed.connect(func() -> void: _log_show_star_chart(content))
@@ -1063,7 +1058,7 @@ func _show_captains_log() -> void:
 	tab_bar.add_child(spacer)
 
 	var lbl_loc := Label.new()
-	lbl_loc.text = "📍 %s  |  %d/%d systems charted" % [
+	lbl_loc.text = (_e("📍", "%s") + "  |  %d/%d systems charted") % [
 		StarMapData.find_system(_current_system).get("name", "Unknown"),
 		_discovered_systems.size(), StarMapData.SYSTEMS.size()]
 	lbl_loc.add_theme_font_size_override("font_size", 10)
@@ -1288,7 +1283,7 @@ func _chart_input(chart: Control, event: InputEvent, tooltip: RichTextLabel) -> 
 		var percy_id := _get_percy_mission_at(hit.id as String)
 		if not percy_id.is_empty():
 			var pm := StarMapData.find_percy_mission(percy_id)
-			mission_lines += "\n[color=#ff8833]⚠ Commander Percy: %s[/color]\n[color=#ff8833]%s[/color]" % [
+			mission_lines += "\n[color=#ff8833][!] Commander Percy: %s[/color]\n[color=#ff8833]%s[/color]" % [
 				pm.get("title", ""), pm.get("desc", "")]
 		var crew_mid := _get_crew_mission_at(hit.id as String)
 		if not crew_mid.is_empty():
@@ -1297,9 +1292,9 @@ func _chart_input(chart: Control, event: InputEvent, tooltip: RichTextLabel) -> 
 			var cname: String = CREW_DISPLAY_NAMES.get(cid, "Unknown")
 			var ccol: Color = CREW_MARKER_COLORS.get(cid, CLR_ACCENT)
 			var hex := "#%02x%02x%02x" % [int(ccol.r * 255), int(ccol.g * 255), int(ccol.b * 255)]
-			mission_lines += "\n[color=%s]⚠ %s: %s[/color]\n[color=%s]%s[/color]" % [
+			mission_lines += "\n[color=%s][!] %s: %s[/color]\n[color=%s]%s[/color]" % [
 				hex, cname, cm.get("title", ""), hex, cm.get("desc", "")]
-		var is_cur: String = "  [color=#ffd050]← YOU ARE HERE[/color]" if (hit.id as String) == _current_system else ""
+		var is_cur: String = "  [color=#ffd050]<< YOU ARE HERE[/color]" if (hit.id as String) == _current_system else ""
 		tooltip.text = "[b]%s[/b]%s\nType: %s\n%s%s" % [
 			hit.name, is_cur, (hit.type as String).capitalize(), hit.desc, mission_lines]
 
@@ -1397,7 +1392,7 @@ func _show_percy_mission_dialog(mission_id: String) -> void:
 
 	# Mission details
 	var details := Label.new()
-	details.text = "「 %s 」  —  %s  |  ~%d days  |  Reward: %d cr" % [
+	details.text = "[ %s ]  --  %s  |  ~%d days  |  Reward: %d cr" % [
 		m.title, loc_name, m.days as int, m.reward as int]
 	details.add_theme_font_size_override("font_size", 11)
 	details.add_theme_color_override("font_color", Color(0.90, 0.85, 0.55, 1.0))
@@ -1540,7 +1535,7 @@ func _show_crew_mission_dialog(mission_id: String) -> void:
 	speech_vb.add_child(speech)
 
 	var details := Label.new()
-	details.text = "「 %s 」  —  %s  |  ~%d days  |  Reward: %d cr" % [
+	details.text = "[ %s ]  --  %s  |  ~%d days  |  Reward: %d cr" % [
 		m.title, loc_name, m.days as int, m.reward as int]
 	details.add_theme_font_size_override("font_size", 11)
 	details.add_theme_color_override("font_color", accent.lightened(0.3))
@@ -1674,7 +1669,7 @@ func _build_log_entry(parent: Control, entry: Dictionary) -> void:
 		return
 
 	var btn_expand := Button.new()
-	btn_expand.text = "▶ %d events" % events.size()
+	btn_expand.text = "> %d events" % events.size()
 	btn_expand.add_theme_font_size_override("font_size", 9)
 	btn_expand.flat = true
 	btn_expand.add_theme_color_override("font_color", CLR_ACCENT)
@@ -1695,7 +1690,7 @@ func _build_log_entry(parent: Control, entry: Dictionary) -> void:
 
 	btn_expand.pressed.connect(func() -> void:
 		detail_box.visible = not detail_box.visible
-		btn_expand.text = ("▼ %d events" if detail_box.visible else "▶ %d events") % events.size()
+		btn_expand.text = ("v %d events" if detail_box.visible else "> %d events") % events.size()
 	)
 
 
@@ -2266,7 +2261,7 @@ func _build_job_row(job: Dictionary, popup: PanelContainer) -> PanelContainer:
 	var stats_text := "%d days  |  %d cr/day  |  Total: %d cr" % [
 		job.days, job.pay_per_day, job.total_pay]
 	if job.harsh:
-		stats_text += "  |  ⚠ Hazardous"
+		stats_text += "  |  [!] Hazardous"
 	var lbl_stats := Label.new()
 	lbl_stats.text = stats_text
 	lbl_stats.add_theme_font_size_override("font_size", 10)
@@ -2278,7 +2273,7 @@ func _build_job_row(job: Dictionary, popup: PanelContainer) -> PanelContainer:
 	var at_risk := _estimate_at_risk_rooms(job.days, job.harsh)
 	if not at_risk.is_empty():
 		var warn_lbl := Label.new()
-		warn_lbl.text = "⚠ " + "  ".join(at_risk)
+		warn_lbl.text = "[!] " + "  ".join(at_risk)
 		warn_lbl.add_theme_font_size_override("font_size", 10)
 		warn_lbl.add_theme_color_override("font_color", Color(0.95, 0.30, 0.25, 1.0))
 		info_vb.add_child(warn_lbl)
@@ -2319,7 +2314,7 @@ func _build_percy_job_row(pm: Dictionary, popup: PanelContainer) -> PanelContain
 	hb.add_child(info_vb)
 
 	var lbl_title := Label.new()
-	lbl_title.text = "⚠ PERCY MISSION — %s" % (pm.title as String)
+	lbl_title.text = "[!] PERCY MISSION -- %s" % (pm.title as String)
 	lbl_title.add_theme_font_size_override("font_size", 12)
 	lbl_title.add_theme_color_override("font_color", Color(0.95, 0.55, 0.20, 1.0))
 	info_vb.add_child(lbl_title)
@@ -2377,7 +2372,7 @@ func _build_crew_job_row(cm: Dictionary, popup: PanelContainer) -> PanelContaine
 	hb.add_child(info_vb)
 
 	var lbl_title := Label.new()
-	lbl_title.text = "⚠ %s — %s" % [display_name.to_upper(), cm.title as String]
+	lbl_title.text = "[!] %s -- %s" % [display_name.to_upper(), cm.title as String]
 	lbl_title.add_theme_font_size_override("font_size", 12)
 	lbl_title.add_theme_color_override("font_color", accent)
 	info_vb.add_child(lbl_title)
@@ -2440,7 +2435,7 @@ func _show_cargo_puzzle(job: Dictionary) -> void:
 		puzzle.queue_free()
 		_cargo_puzzle = null
 		if bonus > 0:
-			_toast("📦 Cargo loaded efficiently! +%d cr bonus" % bonus)
+			_toast("Cargo loaded efficiently! +%d cr bonus" % bonus)
 		_launch_flight(_pending_job, bonus)
 		_pending_job = {})
 	add_child(puzzle)
@@ -2551,7 +2546,7 @@ func _on_job_finished(result: Dictionary) -> void:
 		_traveled_routes.append(route)
 	var newly_found := _discover_nearby(_current_system)
 	if not newly_found.is_empty():
-		_toast("🔭 Sensors charted %d new system(s): %s" % [
+		_toast("Sensors charted %d new system(s): %s" % [
 			newly_found.size(), ", ".join(newly_found)])
 
 	# ── Percy mission completion ──
