@@ -285,7 +285,7 @@ func _show_crew_hint(crew_id: String, message: String, on_dismiss: Callable = Ca
 
 	var portrait_path: String = CREW_PORTRAITS.get(crew_id, CREW_PORTRAITS.percy)
 	var crew_tex := TextureRect.new()
-	crew_tex.custom_minimum_size = Vector2(64, 64)
+	crew_tex.custom_minimum_size = Vector2(120, 160)
 	crew_tex.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
 	crew_tex.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
 	if ResourceLoader.exists(portrait_path):
@@ -1306,7 +1306,7 @@ func _show_percy_mission_dialog(mission_id: String) -> void:
 		portrait.texture = tex
 	portrait.expand_mode  = TextureRect.EXPAND_FIT_WIDTH_PROPORTIONAL
 	portrait.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
-	portrait.custom_minimum_size = Vector2(64, 64)
+	portrait.custom_minimum_size = Vector2(120, 160)
 	hb.add_child(portrait)
 
 	var speech_vb := VBoxContainer.new()
@@ -1450,7 +1450,7 @@ func _show_crew_mission_dialog(mission_id: String) -> void:
 		portrait.texture = load(portrait_path)
 	portrait.expand_mode  = TextureRect.EXPAND_FIT_WIDTH_PROPORTIONAL
 	portrait.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
-	portrait.custom_minimum_size = Vector2(64, 64)
+	portrait.custom_minimum_size = Vector2(120, 160)
 	hb.add_child(portrait)
 
 	var speech_vb := VBoxContainer.new()

@@ -1,0 +1,180 @@
+{
+	"connections": [
+		{
+			"from": "node_3",
+			"from_port": 0,
+			"to": "node_1",
+			"to_port": 0
+		},
+		{
+			"from": "node_1",
+			"from_port": 0,
+			"to": "node_2",
+			"to_port": 0
+		}
+	],
+	"counter": 3,
+	"credits": 2920,
+	"crew": [
+		{
+			"assigned_to": "",
+			"efficiency": 0.77,
+			"id": "crew_1",
+			"name": "Lumen Fenris",
+			"portrait": "res://assets/pictures/profiles/space_dog_terrier.png",
+			"role": "Technician",
+			"shore_leave_days": 0,
+			"status": "active",
+			"trips": 2
+		},
+		{
+			"assigned_to": "",
+			"efficiency": 0.7,
+			"id": "crew_3",
+			"name": "Nova Tanaka",
+			"portrait": "res://assets/pictures/profiles/alien_insectoid.png",
+			"role": "Officer",
+			"shore_leave_days": 0,
+			"status": "active",
+			"trips": 2
+		},
+		{
+			"assigned_to": "",
+			"efficiency": 0.77,
+			"id": "crew_6",
+			"name": "Quinn Stark",
+			"portrait": "res://assets/pictures/profiles/human_female.png",
+			"role": "Engineer",
+			"shore_leave_days": 0,
+			"status": "active",
+			"trips": 0
+		}
+	],
+	"crew_counter": 6,
+	"current_system": "scylla",
+	"jobs_completed": 2,
+	"nodes": [
+		{
+			"def_id": "exp_fusion",
+			"durability": 100,
+			"hull_px": 0.0,
+			"hull_py": 0.0,
+			"name": "node_1",
+			"pos_x": 2320.0,
+			"pos_y": 640.0,
+			"texture": "res://assets/pictures/textures/tex_energy_conduit_mesh.png",
+			"uid": "node_1"
+		},
+		{
+			"def_id": "dune_navchamber",
+			"durability": 80,
+			"hull_px": 1.63265287876129,
+			"hull_py": -31.0203971862793,
+			"name": "node_3",
+			"pos_x": 2040.0,
+			"pos_y": 640.0,
+			"texture": "res://assets/pictures/textures/tex_riveted_steel.png",
+			"uid": "node_3"
+		},
+		{
+			"def_id": "dune_suspensor",
+			"durability": 85,
+			"hull_px": 0.0,
+			"hull_py": 18.7755069732666,
+			"name": "node_2",
+			"pos_x": 2600.0,
+			"pos_y": 640.0,
+			"texture": "res://assets/pictures/textures/tex_vothaal_hull.png",
+			"uid": "node_2"
+		}
+	],
+	"ship_3d_layout": {
+		"node_1": {
+			"ox": 0.0,
+			"oy": 0.0,
+			"oz": -0.5,
+			"rot_y": 0.0,
+			"scale": 0.5
+		},
+		"node_2": {
+			"ox": 0.0,
+			"oy": 0.0499999999999998,
+			"oz": -0.9,
+			"rot_y": 0.0,
+			"scale": 0.5
+		},
+		"node_3": {
+			"ox": 0.0,
+			"oy": 0.0,
+			"oz": -0.6,
+			"rot_y": 0.0,
+			"scale": 1.0
+		}
+	},
+	"ship_log": [
+		{
+			"crew": 3,
+			"days": 6,
+			"earned": 558,
+			"from": "sol",
+			"lines": [
+				"[color=#55cc77]⬡ Hull adjacency: 3 room pairs detected[/color]",
+				"[color=#4488ff]═══  Demo  —  Diplomatic Courier  —  6 days to Kepler Station  ═══[/color]",
+				"[color=#6688cc]  Departing Sol. Engines spooling up…[/color]",
+				"[color=#88aaff]  Course locked. Initiating FTL burn.[/color]",
+				"[color=#44aaff]🔧 Lumen Fenris reduces wear on Fusion Reactor[/color]",
+				"[color=#55cc77]⬡ Adjacency: -1 wear on Suspensor Drive[/color]",
+				"[color=#556677]  Routine transit.[/color]",
+				"[color=#556677]  Routine transit.[/color]",
+				"",
+				"[color=#ffd050]═══  Arrived at Kepler Station  ═══[/color]",
+				"[color=#ffd050]Net earned: 558 credits[/color]",
+				"[color=#ff8844]Crew wages: -144 cr[/color]"
+			],
+			"promotions": [],
+			"to": "station_k",
+			"to_name": "Kepler Station",
+			"voyage": 1,
+			"wages": 144
+		},
+		{
+			"crew": 4,
+			"days": 21,
+			"earned": 3810,
+			"from": "station_k",
+			"lines": [
+				"[color=#55cc77]⬡ Hull adjacency: 3 room pairs detected[/color]",
+				"[color=#4488ff]═══  Demo  —  Colony Supply  —  21 days to Scylla Nebula  ═══[/color]",
+				"[color=#6688cc]  Departing Kepler Station. Engines spooling up…[/color]",
+				"[color=#6677aa]  Via: Barnard's Star, New Haven[/color]",
+				"[color=#88aaff]  Course locked. Initiating FTL burn.[/color]",
+				"[color=#44aaff]🔧 Lumen Fenris reduces wear on Fusion Reactor[/color]",
+				"[color=#55cc77]⬡ Adjacency: -1 wear on Suspensor Drive[/color]",
+				"[color=#55cc77]⬡ Hull synergy: Command adjacency +29 cr[/color]",
+				"[color=#44ee88]✔ Profitable cargo run — +323 cr[/color]",
+				"[color=#55cc77]⬡ Hull synergy: Command adjacency +19 cr[/color]",
+				"[color=#44ee88]✔ Profitable cargo run — +216 cr[/color]",
+				"[color=#aaccff]→ Passing through Barnard's Star[/color]",
+				"[color=#ff5533]⚠ Combat! -5 dur to [b]Fusion Reactor[/b].[/color]",
+				"[color=#556677]  Routine transit.[/color]",
+				"[color=#aaccff]→ Passing through New Haven[/color]",
+				"[color=#55cc77]⬡ Hull synergy: Command adjacency +38 cr[/color]",
+				"[color=#44ee88]✔ Diplomatic contract — +421 cr[/color]",
+				"[color=#556677]  Routine transit.[/color]",
+				"[color=#55cc77]⬡ Hull synergy: Command adjacency +15 cr[/color]",
+				"[color=#44ee88]✔ Diplomatic contract — +173 cr[/color]",
+				"",
+				"[color=#ffd050]═══  Arrived at Scylla Nebula  ═══[/color]",
+				"[color=#ffd050]Net earned: 3810 credits[/color]",
+				"[color=#ff8844]Crew wages: -672 cr[/color]"
+			],
+			"promotions": [],
+			"to": "scylla",
+			"to_name": "Scylla Nebula",
+			"voyage": 2,
+			"wages": 672
+		}
+	],
+	"ship_name": "Demo",
+	"version": 1
+}
