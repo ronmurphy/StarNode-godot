@@ -2,16 +2,16 @@
 
 importer="texture"
 type="CompressedTexture2D"
-uid="uid://k0wx7w2eyuhk"
-path="res://.godot/imported/StarNode.icon.png-2a6b7386363b1503ee82c718a1f18a0f.ctex"
+uid="uid://vsltc3rqe1m6"
+path="res://.godot/imported/StarNode.icon.png-151b8780c463c41db7cea143eebaaf62.ctex"
 metadata={
 "vram_texture": false
 }
 
 [deps]
 
-source_file="res://Distros/StarNode.icon.png"
-dest_files=["res://.godot/imported/StarNode.icon.png-2a6b7386363b1503ee82c718a1f18a0f.ctex"]
+source_file="res://web/StarNode.icon.png"
+dest_files=["res://.godot/imported/StarNode.icon.png-151b8780c463c41db7cea143eebaaf62.ctex"]
 
 [params]
 

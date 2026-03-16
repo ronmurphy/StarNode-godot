@@ -7,8 +7,8 @@ var graph_edit: GraphEdit
 var txt_ship_name: LineEdit
 var lbl_credits: Label
 var lbl_power: Label
-var lbl_location: Label
-var lbl_crew: Label
+var lbl_location: Button
+var lbl_crew: Button
 var _job_board_popup: PanelContainer  # active job board modal (if open)
 var btn_hull_edit: Button
 var _blueprint_ctrl: ShipBlueprint
@@ -84,6 +84,7 @@ const CLR_PWR_NEG   := Color(0.863, 0.392, 0.310, 1.0)
 
 # ════════════════════════════════════════════════════════════════════════════
 func _ready() -> void:
+	_setup_display_scale()
 	_setup_emoji_font()
 	_build_ui()
 	_update_header()
@@ -100,6 +101,33 @@ func _setup_emoji_font() -> void:
 	var fbs: Array[Font] = fb.get_fallbacks()
 	fbs.append(emoji_font)
 	fb.set_fallbacks(fbs)
+
+
+func _setup_display_scale() -> void:
+	# Desktop: project.godot sets mode=2 (maximized) and stretch=canvas_items
+	# so Godot scales the 1280x800 viewport to fill the window automatically.
+	# We do NOT touch content_scale_factor on desktop — doing so shrinks the
+	# virtual viewport below 1280px and clips the header buttons.
+	#
+	# Web: the browser canvas is sized in CSS pixels. On a 2K tablet with
+	# devicePixelRatio=2 the CSS viewport may only be ~800px wide, making
+	# everything appear tiny. We apply a gentle boost only when dpr > 1.3.
+	if not OS.has_feature("web"):
+		return
+
+	var dpr = JavaScriptBridge.eval("window.devicePixelRatio || 1.0")
+	dpr = clampf(float(dpr), 1.0, 4.0)
+
+	# Only intervene on genuine HiDPI displays (tablets, Retina, 2K+).
+	# Standard 1x browser screens look fine with stretch mode alone.
+	if dpr <= 1.3:
+		return
+
+	# Scale proportionally to dpr, but stay conservative so the UI doesn't
+	# overflow on smaller tablet viewport widths.
+	# dpr 1.5 -> ~1.2x  |  dpr 2.0 -> ~1.5x  |  dpr 3.0 -> ~1.8x
+	var scale := clampf(1.0 + (dpr - 1.0) * 0.5, 1.0, 2.0)
+	get_window().content_scale_factor = scale
 
 
 # ── Build UI ─────────────────────────────────────────────────────────────────
@@ -171,19 +199,15 @@ func _build_header(parent: Control) -> void:
 	lbl_power.mouse_default_cursor_shape = Control.CURSOR_POINTING_HAND
 	hbox.add_child(lbl_power)
 
-	lbl_location = _make_label("📍 Sol", 11, CLR_DIM)
-	lbl_location.custom_minimum_size.x = 115
-	lbl_location.mouse_filter = Control.MOUSE_FILTER_STOP
-	lbl_location.gui_input.connect(_on_location_click)
-	lbl_location.mouse_default_cursor_shape = Control.CURSOR_POINTING_HAND
-	hbox.add_child(lbl_location)
+	var btn_location := _make_btn("📍 Sol", 115, _on_location_click)
+	btn_location.add_theme_color_override("font_color", CLR_DIM)
+	lbl_location = btn_location
+	hbox.add_child(btn_location)
 
-	lbl_crew = _make_label("Crew: 0", 11, Color(0.65, 0.80, 0.95, 1.0))
-	lbl_crew.custom_minimum_size.x = 70
-	lbl_crew.mouse_filter = Control.MOUSE_FILTER_STOP
-	lbl_crew.gui_input.connect(_on_crew_click)
-	lbl_crew.mouse_default_cursor_shape = Control.CURSOR_POINTING_HAND
-	hbox.add_child(lbl_crew)
+	var btn_crew := _make_btn("👥 Crew: 0", 100, _on_crew_click)
+	btn_crew.add_theme_color_override("font_color", Color(0.65, 0.80, 0.95, 1.0))
+	hbox.add_child(btn_crew)
+	lbl_crew = btn_crew
 
 	_add_vsep(hbox)
 
@@ -242,6 +266,13 @@ const CREW_PORTRAITS := {
 	"shadow":  "res://assets/pictures/crew/shadow_scout.png",
 	"zester":  "res://assets/pictures/crew/zester_ensign.png",
 	"mika":    "res://assets/pictures/crew/mika_counselor.png",
+	# ── Extended roster ─────────────────────────────────────────────────────
+	"bella":   "res://assets/pictures/crew/bella_twin_inspyrenet.png",
+	"rina":    "res://assets/pictures/crew/rina_twin.png",
+	"tumbler": "res://assets/pictures/crew/tumbler_tradeboss.png",
+	"murphy":  "res://assets/pictures/crew/murphy_merchant.png",
+	"river":   "res://assets/pictures/crew/river_ambassador.png",
+	"fluffy":  "res://assets/pictures/crew/fluffy_contractor.png",
 }
 const CREW_DISPLAY_NAMES := {
 	"percy":   "Commander Percy",
@@ -249,6 +280,13 @@ const CREW_DISPLAY_NAMES := {
 	"shadow":  "Shadow",
 	"zester":  "Ensign Zester",
 	"mika":    "Counselor Mika",
+	# ── Extended roster ─────────────────────────────────────────────────────
+	"bella":   "Bella",
+	"rina":    "Rina",
+	"tumbler": "Tumbler",
+	"murphy":  "Murphy",
+	"river":   "Ambassador River",
+	"fluffy":  "Fluffy",
 }
 const CREW_MARKER_COLORS := {
 	"percy":   Color(0.95, 0.55, 0.15),
@@ -256,6 +294,13 @@ const CREW_MARKER_COLORS := {
 	"shadow":  Color(0.40, 0.70, 0.95),
 	"zester":  Color(0.95, 0.95, 0.30),
 	"mika":    Color(0.85, 0.45, 0.90),
+	# ── Extended roster ─────────────────────────────────────────────────────
+	"bella":   Color(0.95, 0.60, 0.80),  # pink
+	"rina":    Color(0.95, 0.80, 0.60),  # peach
+	"tumbler": Color(0.70, 0.55, 0.95),  # purple
+	"murphy":  Color(0.85, 0.70, 0.30),  # khaki gold
+	"river":   Color(0.30, 0.85, 0.85),  # teal
+	"fluffy":  Color(0.70, 0.70, 0.70),  # neutral grey
 }
 
 
@@ -379,7 +424,7 @@ func _show_shipyard(show_intro: bool, inventory: Array = []) -> void:
 		root_vb.add_child(intro_hb)
 
 		var percy_tex := TextureRect.new()
-		percy_tex.custom_minimum_size = Vector2(72, 72)
+		percy_tex.custom_minimum_size = Vector2(120, 160)
 		percy_tex.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
 		percy_tex.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
 		if ResourceLoader.exists(CREW_PORTRAITS.percy):
@@ -780,7 +825,7 @@ func _update_header() -> void:
 	var sys := StarMapData.find_system(_current_system)
 	lbl_location.text = "📍 %s" % (sys.get("name", "Unknown") if not sys.is_empty() else "Unknown")
 	if lbl_crew != null:
-		lbl_crew.text = "Crew: %d" % _crew.size()
+		lbl_crew.text = "👥 Crew: %d" % _crew.size()
 
 
 func _total_power() -> int:
@@ -804,20 +849,18 @@ func _all_nodes() -> Array:
 
 
 # ── Header label clicks ──────────────────────────────────────────────────────
-func _on_location_click(event: InputEvent) -> void:
-	if event is InputEventMouseButton and event.pressed and event.button_index == MOUSE_BUTTON_LEFT:
-		if _jobs_completed > 0:
-			_open_port_menu("summary")
-		else:
-			_toast("Complete a job first to access the port.")
+func _on_location_click() -> void:
+	if _jobs_completed > 0:
+		_open_port_menu("summary")
+	else:
+		_toast("Complete a job first to access the port.")
 
 
-func _on_crew_click(event: InputEvent) -> void:
-	if event is InputEventMouseButton and event.pressed and event.button_index == MOUSE_BUTTON_LEFT:
-		if _jobs_completed > 0:
-			_open_port_menu("crew")
-		else:
-			_toast("Complete a job first to manage crew.")
+func _on_crew_click() -> void:
+	if _jobs_completed > 0:
+		_open_port_menu("crew")
+	else:
+		_toast("Complete a job first to manage crew.")
 
 
 func _on_power_click(event: InputEvent) -> void:
