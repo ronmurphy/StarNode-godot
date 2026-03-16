@@ -84,8 +84,22 @@ const CLR_PWR_NEG   := Color(0.863, 0.392, 0.310, 1.0)
 
 # ════════════════════════════════════════════════════════════════════════════
 func _ready() -> void:
+	_setup_emoji_font()
 	_build_ui()
 	_update_header()
+
+
+func _setup_emoji_font() -> void:
+	# Web exports have no OS emoji font — load Noto Emoji as a fallback so
+	# all labels/buttons that don't have explicit fonts still render glyphs.
+	# On desktop Godot already uses the system emoji font automatically.
+	var emoji_font: Font = load("res://assets/fonts/NotoEmoji-Regular.ttf")
+	if emoji_font == null:
+		return
+	var fb: Font = ThemeDB.fallback_font
+	var fbs: Array[Font] = fb.get_fallbacks()
+	fbs.append(emoji_font)
+	fb.set_fallbacks(fbs)
 
 
 # ── Build UI ─────────────────────────────────────────────────────────────────

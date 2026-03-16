@@ -24,6 +24,30 @@ const TEX_WING  := "res://assets/pictures/textures/tex_carbon_composite.png"
 const TEX_GLASS := "res://assets/pictures/textures/tex_reinforced_glass.png"
 const TEX_IRON  := "res://assets/pictures/textures/tex_aged_iron.png"
 
+# All available hull textures — hardcoded so web export doesn't need DirAccess
+const ALL_TEXTURES: Array[String] = [
+	"res://assets/pictures/textures/tex_aged_iron.png",
+	"res://assets/pictures/textures/tex_biometal.png",
+	"res://assets/pictures/textures/tex_carbon_composite.png",
+	"res://assets/pictures/textures/tex_darktech.png",
+	"res://assets/pictures/textures/tex_darkmetal.png",
+	"res://assets/pictures/textures/tex_energy_conduit_mesh.png",
+	"res://assets/pictures/textures/tex_heat_ceramic.png",
+	"res://assets/pictures/textures/tex_holometal.png",
+	"res://assets/pictures/textures/tex_krysthari_hull.png",
+	"res://assets/pictures/textures/tex_luminar_hull.png",
+	"res://assets/pictures/textures/tex_oldfreighter.png",
+	"res://assets/pictures/textures/tex_polymer_coating.png",
+	"res://assets/pictures/textures/tex_reinforced_glass.png",
+	"res://assets/pictures/textures/tex_riveted_steel.png",
+	"res://assets/pictures/textures/tex_runemetal.png",
+	"res://assets/pictures/textures/tex_scaled.png",
+	"res://assets/pictures/textures/tex_technology.png",
+	"res://assets/pictures/textures/tex_titanium.png",
+	"res://assets/pictures/textures/tex_varak_hull.png",
+	"res://assets/pictures/textures/tex_vothaal_hull.png",
+]
+
 # ── 3D scene refs ────────────────────────────────────────────────────────────
 var _viewport:   SubViewport
 var _world:      Node3D
@@ -726,17 +750,8 @@ func _add_sp(parent: Control, px: int) -> void:
 # ── Texture Panel ─────────────────────────────────────────────────────────────
 
 func _build_texture_panel(parent: Control) -> void:
-	# Scan res://assets/pictures/textures/ for all .png files
-	var dir := DirAccess.open("res://assets/pictures/textures/")
-	if dir:
-		dir.list_dir_begin()
-		var fname := dir.get_next()
-		while fname != "":
-			if not dir.current_is_dir() and fname.ends_with(".png"):
-				_tex_paths.append("res://assets/pictures/textures/" + fname)
-			fname = dir.get_next()
-		dir.list_dir_end()
-		_tex_paths.sort()
+	# Use the hardcoded list — DirAccess doesn't work in web exports
+	_tex_paths = Array(ALL_TEXTURES)
 
 	var panel := PanelContainer.new()
 	panel.custom_minimum_size.x = 196
