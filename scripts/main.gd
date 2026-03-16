@@ -48,6 +48,7 @@ var _active_percy_mission: String = ""
 var _crew_missions_completed: Array = []
 var _active_crew_mission: String = ""
 var _log_overlay: Control = null       # captain's log overlay (if open)
+var _web_load_cb  = null               # JS callback reference — must stay alive until file is picked
 
 const CARGO_JOB_TYPES: Array = ["Freight", "Smuggling", "Colony Supply"]
 
@@ -1848,6 +1849,9 @@ func _get_crew_mission_at(system_id: String) -> String:
 
 
 func _on_save() -> void:
+	if OS.get_name() == "Web":
+		_save_to_web()
+		return
 	var dialog := FileDialog.new()
 	dialog.file_mode = FileDialog.FILE_MODE_SAVE_FILE
 	dialog.access = FileDialog.ACCESS_FILESYSTEM
@@ -1862,6 +1866,9 @@ func _on_save() -> void:
 
 
 func _on_load() -> void:
+	if OS.get_name() == "Web":
+		_load_from_web()
+		return
 	var dialog := FileDialog.new()
 	dialog.file_mode = FileDialog.FILE_MODE_OPEN_FILE
 	dialog.access = FileDialog.ACCESS_FILESYSTEM
@@ -1874,33 +1881,71 @@ func _on_load() -> void:
 	dialog.popup_centered(Vector2i(800, 500))
 
 
-func _save_to_file(path: String) -> void:
-	_last_save_path = path
+# ── Web save/load (browser download / file-input upload) ──────────────────────
+
+func _save_to_web() -> void:
+	var json_str: String = JSON.stringify(_build_save_dict(), "\t")
+	var bytes: PackedByteArray = json_str.to_utf8_buffer()
+	JavaScriptBridge.download_buffer(bytes, ship_name + ".snship", "application/octet-stream")
+	_toast("Ship '%s' downloaded!" % ship_name)
+
+
+func _load_from_web() -> void:
+	_web_load_cb = JavaScriptBridge.create_callback(func(args: Array) -> void:
+		_web_load_cb = null
+		if args.is_empty() or (args[0] as String).is_empty():
+			_toast("Load cancelled.")
+			return
+		var parsed: Variant = JSON.parse_string(args[0] as String)
+		if parsed == null or not parsed is Dictionary:
+			_toast("Load failed: invalid file format.")
+			return
+		_apply_save_data(parsed as Dictionary, ""))
+	JavaScriptBridge.get_interface("window").godot_load_callback = _web_load_cb
+	JavaScriptBridge.eval("""(function(){
+		var inp = document.createElement('input');
+		inp.type = 'file'; inp.accept = '.snship,.json';
+		inp.style.display = 'none';
+		document.body.appendChild(inp);
+		inp.addEventListener('change', function(e){
+			var f = e.target.files[0];
+			document.body.removeChild(inp);
+			if (!f) { window.godot_load_callback(''); return; }
+			var r = new FileReader();
+			r.onload = function(re){ window.godot_load_callback(re.target.result); };
+			r.readAsText(f);
+		});
+		inp.click();
+	})();""")
+	_toast("Opening file picker…")
+
+
+# ── Core save/load helpers ────────────────────────────────────────────────────
+
+func _build_save_dict() -> Dictionary:
 	var nodes_data: Array = []
 	for n in _all_nodes():
 		var ship_node := n as ShipNode
 		nodes_data.append({
-			"uid":      ship_node.node_uid,
-			"name":     ship_node.name,
-			"def_id":   ship_node.def_id,
-			"pos_x":    ship_node.position_offset.x,
-			"pos_y":    ship_node.position_offset.y,
+			"uid":        ship_node.node_uid,
+			"name":       ship_node.name,
+			"def_id":     ship_node.def_id,
+			"pos_x":      ship_node.position_offset.x,
+			"pos_y":      ship_node.position_offset.y,
 			"durability": ship_node.current_durability,
-		"texture":    _room_textures.get(ship_node.node_uid, ""),
-		"hull_px":    ship_node.hull_pos.x,
-		"hull_py":    ship_node.hull_pos.y,
+			"texture":    _room_textures.get(ship_node.node_uid, ""),
+			"hull_px":    ship_node.hull_pos.x,
+			"hull_py":    ship_node.hull_pos.y,
 		})
-
 	var conn_data: Array = []
 	for conn in graph_edit.get_connection_list():
 		conn_data.append({
-			"from": conn.from_node,
+			"from":      conn.from_node,
 			"from_port": conn.from_port,
-			"to": conn.to_node,
-			"to_port": conn.to_port,
+			"to":        conn.to_node,
+			"to_port":   conn.to_port,
 		})
-
-	var save_dict := {
+	return {
 		"version":        SAVE_VERSION,
 		"ship_name":      ship_name,
 		"credits":        credits,
@@ -1917,15 +1962,18 @@ func _save_to_file(path: String) -> void:
 		"active_percy_mission":     _active_percy_mission,
 		"crew_missions_completed":  _crew_missions_completed,
 		"active_crew_mission":      _active_crew_mission,
-		"nodes":          nodes_data,
-		"connections":    conn_data,
+		"nodes":       nodes_data,
+		"connections": conn_data,
 	}
 
+
+func _save_to_file(path: String) -> void:
+	_last_save_path = path
 	var file := FileAccess.open(path, FileAccess.WRITE)
 	if file == null:
 		_toast("Save failed: could not open file.")
 		return
-	file.store_string(JSON.stringify(save_dict, "\t"))
+	file.store_string(JSON.stringify(_build_save_dict(), "\t"))
 	file.close()
 	_toast("Ship '%s' saved!" % ship_name)
 
@@ -1937,11 +1985,14 @@ func _load_from_file(path: String) -> void:
 		return
 	var text := file.get_as_text()
 	file.close()
-
 	var parsed: Variant = JSON.parse_string(text)
 	if parsed == null or not parsed is Dictionary:
 		_toast("Load failed: invalid file format.")
 		return
+	_apply_save_data(parsed as Dictionary, path)
+
+
+func _apply_save_data(data: Dictionary, path: String) -> void:
 
 	# Clear current ship
 	for n in _all_nodes():
@@ -1949,7 +2000,6 @@ func _load_from_file(path: String) -> void:
 	graph_edit.clear_connections()
 	_room_textures.clear()
 
-	var data: Dictionary = parsed
 	ship_name       = data.get("ship_name",      "My Ship")
 	credits         = data.get("credits",        2000)
 	_node_counter   = data.get("counter",        0)
@@ -2018,8 +2068,8 @@ func _load_from_file(path: String) -> void:
 	_update_header()
 	_toast("Ship '%s' loaded." % ship_name)
 
-	# Auto-save if legacy textures were assigned so they persist
-	if legacy_textures_assigned:
+	# Auto-save if legacy textures were assigned so they persist (desktop only)
+	if legacy_textures_assigned and not path.is_empty() and OS.get_name() != "Web":
 		_save_to_file(path)
 		_toast("Textures assigned to legacy rooms — save updated.")
 
