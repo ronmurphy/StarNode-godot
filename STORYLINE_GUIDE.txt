@@ -1,0 +1,422 @@
+================================================================================
+  STARNODE — CREW STORY MISSION GUIDE
+  How to add, edit, and crossover crew storylines
+================================================================================
+
+OVERVIEW
+--------
+Every crew member has a personal mission chain. Each mission is a dictionary
+entry inside the CREW_MISSIONS array (or PERCY_MISSIONS for Percy's chain) in:
+
+    scripts/star_map_data.gd
+
+Missions appear as pins on the Star Chart (Captain's Log > Star Chart tab).
+The player hovers over a system, clicks it, and gets a dialog with the crew
+member's portrait and speech before accepting or declining.
+
+
+================================================================================
+  MISSION FIELD REFERENCE
+================================================================================
+
+{
+    "id":       "crewname_##_slug",        # Unique ID -- never change after release
+    "crew":     "crewname",               # Must match a key in CREW_PORTRAITS (main.gd)
+    "title":    "Display Title",          # Shown on the Star Chart pin and dialog
+    "location": "system_id",             # Must match a system "id" in STAR_SYSTEMS
+    "trigger":  { ... },                 # When this mission becomes available (see below)
+    "desc":     "Short description.",    # One-line summary shown under the title
+    "crew_msg": "\"Dialogue here.\"",    # Full speech -- use escaped quotes inside
+    "days":     N,                       # Approximate travel days (affects pay feel)
+    "reward":   N,                       # Credits awarded on completion
+    "on_complete_discover": ["id", ...], # Systems revealed when mission completes
+                                         # Use [] if none
+}
+
+
+TRIGGER TYPES
+-------------
+Two trigger types are supported:
+
+    { "type": "jobs_completed", "value": N }
+        Mission appears after the player has completed N total jobs.
+
+    { "type": "system_discovered", "value": "system_id" }
+        Mission appears after the player has visited/discovered that system.
+
+Each crew chain is sequential -- mission 02 only unlocks after 01 is completed,
+regardless of the trigger. The trigger is an additional gate on top of that.
+
+
+SYSTEM IDs (valid location values)
+-----------------------------------
+sol           Sol
+proxima       Proxima Centauri
+alpha_cen     Alpha Centauri
+station_k     Kepler Station
+belt_1        Kepler Belt
+sirius        Sirius
+vega          Vega Prime
+rigel_out     Rigel Outpost
+barnard       Barnard's Star
+new_haven     New Haven
+cygnus        Cygnus Reach
+deneb         Deneb
+hadley        Hadley's Hope
+polaris_st    Polaris Station
+iron_belt     Iron Belt
+tartarus      Tartarus Void
+scylla        Scylla Nebula
+elysium       Elysium
+frontier      Frontier Station
+kronos        Kronos Deep
+the_rim       The Rim
+
+
+CREW IDs (valid "crew" values)
+-------------------------------
+percy         Commander Percy      -- GEC Corps commander
+roswell       Roswell              -- alien conspiracy theorist
+shadow        Shadow               -- loyal, gentle, intuitive scout
+zester        Ensign Zester        -- chaotic young ensign, kitten energy
+mika          Counselor Mika       -- seen everything, unshakeable
+bella         Bella                -- twin socialite, polished, strategic
+rina          Rina                 -- twin socialite, impulsive, warm
+tumbler       Tumbler              -- Merchant Guild trade boss, failing eyesight
+murphy        Murphy               -- Tumbler's procurer, Indiana Jones type
+river         Ambassador River     -- GEC diplomat, knows Percy
+fluffy        Fluffy               -- independent contractor, mercenary
+
+
+================================================================================
+  ADDING A NEW MISSION TO AN EXISTING CHAIN
+================================================================================
+
+1. Open scripts/star_map_data.gd
+2. Find the crew member's section (marked with  -- CrewName -- "tagline" --)
+3. Scroll to the last mission in their chain
+4. Add your new entry AFTER the last one in that crew's block
+5. Number it correctly:  crewname_05_slug  (next in sequence)
+6. Set the trigger to match what the previous mission reveals or completes
+
+EXAMPLE -- adding a 5th Roswell mission:
+
+    {
+        "id":       "roswell_05_aftermath",
+        "crew":     "roswell",
+        "title":    "The Aftermath",
+        "location": "sol",
+        "trigger":  { "type": "system_discovered", "value": "tartarus" },
+        "desc":     "Roswell wants to go home. Whatever was at Tartarus changed him.",
+        "crew_msg": "\"Captain. I need to go home. Just... Sol. Just for a little while.\"",
+        "days":     8,
+        "reward":   600,
+        "on_complete_discover": [],
+    },
+
+
+================================================================================
+  ADDING A BRAND NEW CREW MEMBER
+================================================================================
+
+Step 1 -- Add the portrait file
+    Put the .png in:  assets/pictures/crew/
+
+Step 2 -- Register in main.gd
+    Find the three consts near the top of scripts/main.gd and add entries:
+
+    CREW_PORTRAITS -- file path
+        "crewname": "res://assets/pictures/crew/filename.png",
+
+    CREW_DISPLAY_NAMES -- shown in dialogs and toasts
+        "crewname": "Display Name",
+
+    CREW_MARKER_COLORS -- color of the pin on the Star Chart
+        "crewname": Color(R, G, B),   # values 0.0-1.0
+
+    Color suggestions for new crew:
+        Warm orange    Color(0.95, 0.65, 0.20)
+        Cool blue      Color(0.25, 0.60, 0.95)
+        Soft green     Color(0.40, 0.88, 0.50)
+        Deep red       Color(0.90, 0.25, 0.25)
+        Lavender       Color(0.75, 0.55, 0.95)
+
+Step 3 -- Write missions in star_map_data.gd
+    Add a comment header and your entries inside CREW_MISSIONS[]:
+
+        # -- YourCrew -- "Their Tagline" --
+        {
+            "id":       "yourcrew_01_first_mission",
+            "crew":     "yourcrew",
+            ...
+        },
+
+Step 4 -- That's it. The Star Chart and mission dialog pick it up automatically.
+
+
+================================================================================
+  WRITING GOOD CREW DIALOGUE
+================================================================================
+
+Each crew member has a strong voice. Stay consistent:
+
+PERCY -- Commander, composed, tactical. Uses military framing.
+    Never dramatic. Trusts the captain. Gets blunt when stakes are high.
+    "I've been monitoring comm traffic and there's a repeating signal."
+    "This is getting bigger than I expected."
+
+ROSWELL -- Rapid-fire energy, tangents, self-aware about how he sounds.
+    Uses ALL CAPS for emphasis. Ends sentences with exclamation points.
+    Always adds "I know nobody believes me but--"
+    "CAPTAIN! You gotta hear this -- I rigged the array and there's SOMETHING--"
+
+SHADOW -- Gentle, formal, deeply earnest. Calls the captain "sir" or "ma'am."
+    Apologizes before asking for anything. Puts others first always.
+    "I know it's out of our way and I know it might be nothing but..."
+    "I'll do extra shifts, sir. Whatever it takes."
+
+ZESTER -- Chaotic, excitable, everything went sideways and he's almost proud.
+    Starts with "OK so" or "So, uh,". Uses "also" to chain disasters.
+    "OK so I was at this bar -- I know, I know -- but LISTEN."
+    "Also there's a bounty hunter? Can we maybe--"
+
+MIKA -- Calm, observant, clinical warmth. Has seen worse. Doesn't perform.
+    Gives context before the ask. References other crew by name.
+    Never raises her voice in text. Long, measured sentences.
+    "I won't sugarcoat this. What Percy found... it's bigger than any of us."
+
+BELLA -- Precise, composed, aristocratic. Controlled irritation is her panic.
+    "I am not a person who panics. I am also not panicking now. However--"
+    Never vague about what she wants. Has opinions on everyone.
+
+RINA -- Warmer than Bella, impulsive, self-aware but not apologetic about it.
+    Starts with "OK so" (she and Zester share this).
+    References Bella constantly. Admits when she got distracted.
+    "My heart was in the right place. Also the man was very handsome."
+
+TUMBLER -- Minimal words. No pleasantries. Pays on results. Proud.
+    Short sentences. Never admits feelings directly.
+    "Murphy is twelve days overdue. This is not unusual."
+    Subtext carries all the emotion.
+
+MURPHY -- Enthusiastic, fast-talking, everything is fine, this is fine.
+    "Great news -- I need a lift." Everything is framed as an opportunity.
+    References his employer (Tumbler) as "my employer" -- formally.
+    Cheerful even when pinned behind a rock by claim jumpers.
+
+RIVER -- Diplomatic, measured, chooses words with care. Direct when trust is built.
+    "I'll be direct." Then actually is. Cross-references Percy naturally.
+    Carries the weight of institutional responsibility.
+    Admits fault clearly when it happens.
+
+FLUFFY -- Flat affect, professional, economical. Does not do warmth.
+    "I'm not asking for help. I'm asking for a commercial transport arrangement."
+    Never explains more than necessary. Subtext is everything.
+    The moment they open up, it's significant. Keep those moments rare.
+
+
+================================================================================
+  CROSSOVERS -- HOW THEY WORK
+================================================================================
+
+Crossovers are written into the dialogue and desc fields -- they don't require
+special code. Just reference the other crew member by name in the text.
+
+The game doesn't enforce crossover order -- if a player hasn't met Murphy yet
+and Bella mentions him by name, that's fine. It adds mystery. Players who have
+met Murphy will get the payoff; those who haven't get a hook.
+
+EXISTING CROSSOVERS IN THE GAME:
+
+ROSWELL <-> MURPHY
+    murphy_02: Murphy is pinned in the Iron Belt. Roswell heard his signal
+    before Murphy sent one (because of Roswell's sub-harmonic scanning).
+    Murphy is surprised the "conspiracy guy" was his rescuer.
+
+BELLA <-> RINA <-> MURPHY <-> TUMBLER
+    bella_03 + murphy_03 + rina_03: The New Haven auction.
+    All three converge on the same rare artifact. Murphy is bidding for Tumbler.
+    The twins are bidding for themselves. The captain must mediate.
+    Rina independently acquired a related item (rina_02) which Murphy
+    recognizes in rina_03.
+
+TUMBLER <-> MURPHY (long-running)
+    tumbler_02: Murphy goes dark -- Tumbler won't say he's worried.
+    tumbler_04: Tumbler discovers Murphy has been collecting his medical compound
+    for three years without telling him.
+    murphy_04: Murphy explains why from his side.
+    These two missions tell the same story from opposite angles.
+
+SHADOW <-> FLUFFY
+    fluffy_02: Fluffy needs extraction. Shadow heard the beacon before it sent.
+    Fluffy says thanks but "don't make it weird."
+
+PERCY <-> RIVER (the big arc)
+    river_01: River name-drops Percy -- they work in the same organization.
+    river_02: River finds evidence at Barnard connecting to Percy's derelict.
+    river_03: River mediates in Cygnus -- same area Percy investigated.
+    river_04: THE REVEAL -- the unmarked ships were GEC shadow operations.
+    Percy wasn't supposed to find them. River was sent to manage fallout.
+    River chooses to disclose.
+
+PERCY <-> MIKA (background)
+    mika_01: Mika notices the unmarked ship phenomenon affecting people's minds.
+    mika_04: Mika holds the crew together when Percy's investigation ends.
+
+TUMBLER <-> FLUFFY <-> PERCY (the convergence)
+    fluffy_03: Fluffy reveals they were hired by Tumbler for the Cygnus job.
+    Tumbler was investigating the same network Percy is chasing -- from the
+    trade side. Three separate threads (military/GEC, merchant, mercenary)
+    were always pulling at the same knot.
+
+MIKA <-> ZESTER (background texture)
+    zester_02: Mika schedules Roswell for "wellness checks."
+    mika_02: Mika asks to keep Zester off the comms.
+    They have an ongoing relationship -- she watches over him.
+
+
+TIPS FOR WRITING CROSSOVERS:
+- Reference by first name only in dialogue (Murphy, not "my employer Murphy")
+- One crossover reference per mission is enough -- don't over-explain
+- The best crossovers work as hints for players who haven't seen the other chain
+- Reserve the big reveals for late-chain missions (mission 03 or 04)
+- Mika and River work well as observers of other characters -- they're perceptive
+
+
+================================================================================
+  NARRATIVE ARC STRUCTURE
+================================================================================
+
+The overall story has three parallel threads that converge at The Rim:
+
+MILITARY THREAD (Percy -> River)
+    Percy discovers unmarked ships. River was sent to manage the cover-up.
+    River chooses transparency. Both threads resolve together.
+
+TRADE THREAD (Tumbler -> Murphy -> Fluffy)
+    Tumbler is tracking trade irregularities caused by the same operation.
+    Murphy is Tumbler's field agent, unknowingly gathering medical supplies too.
+    Fluffy was hired by Tumbler and ends up tangled in the larger picture.
+    Resolves with Fluffy picking a side and Tumbler getting treatment.
+
+HUMAN THREAD (Shadow -> Mika -> Zester -> Roswell)
+    These four are the emotional core. Shadow keeps finding people who need help.
+    Mika keeps everyone functional. Zester's chaos occasionally saves the day.
+    Roswell's "crazy" theories turn out to be right.
+
+SOCIAL THREAD (Bella -> Rina -> Murphy -> Tumbler)
+    The twins move through high society and accidentally uncover the same
+    artifacts Murphy has been collecting for Tumbler's museum.
+    Ends with Rina's glowing rock being the last piece Tumbler needed.
+
+
+================================================================================
+  QUICK REFERENCE -- ALL MISSION IDs
+================================================================================
+
+PERCY CHAIN (PERCY_MISSIONS const -- separate from CREW_MISSIONS)
+    percy_01_first_steps
+    percy_02_kepler_run
+    percy_03_barnard_trace
+    percy_04_cygnus_signal
+    percy_05_frontier_contact
+
+ROSWELL CHAIN
+    roswell_01_strange_signals
+    roswell_02_vega_anomaly
+    roswell_03_proof
+    roswell_04_first_contact
+
+ZESTER CHAIN
+    zester_01_bar_tab
+    zester_02_the_bet
+    zester_03_contraband_kitten
+    zester_04_gambit
+
+SHADOW CHAIN
+    shadow_01_lost_freighter
+    shadow_02_friend
+    shadow_03_rescue_run
+    shadow_04_long_way_home
+
+MIKA CHAIN
+    mika_01_session_notes
+    mika_02_negotiator
+    mika_03_old_ghosts
+    mika_04_breaking_point
+
+BELLA CHAIN
+    bella_01_the_gala
+    bella_02_the_switch
+    bella_03_auction
+    bella_04_scandal
+
+RINA CHAIN
+    rina_01_my_version
+    rina_02_the_find
+    rina_03_the_real_deal
+
+TUMBLER CHAIN
+    tumbler_01_the_toll
+    tumbler_02_murphy_is_late
+    tumbler_03_the_collection
+    tumbler_04_clear_sight
+
+MURPHY CHAIN
+    murphy_01_vega_job
+    murphy_02_lost_in_the_rock
+    murphy_03_provenance
+    murphy_04_what_tumbler_wants
+
+RIVER CHAIN
+    river_01_diplomatic_pouch
+    river_02_asylum
+    river_03_the_treaty_table
+    river_04_gambits_end
+
+FLUFFY CHAIN
+    fluffy_01_proposition
+    fluffy_02_extraction
+    fluffy_03_the_client
+    fluffy_04_picking_a_side
+
+
+================================================================================
+  COMMON MISTAKES TO AVOID
+================================================================================
+
+- Duplicate IDs will break mission lookup silently. Always use unique IDs.
+- Location must match a real system_id exactly (case-sensitive).
+- Crew key must match CREW_PORTRAITS exactly (also case-sensitive).
+- If on_complete_discover lists a system that doesn't exist, it is silently ignored.
+- Missions must be inside the CREW_MISSIONS array brackets [] -- a missing comma
+  between entries will cause a GDScript parse error on launch.
+- crew_msg should use escaped inner quotes:  "\"Dialogue here.\""
+
+
+================================================================================
+  NOTES ON ADDING NEW SPACE PETS / COMMUNITY SUBMISSIONS
+================================================================================
+
+When a new portrait comes in:
+1. Drop the .png into assets/pictures/crew/
+2. Name it:  charactername_role.png  (e.g., max_pilot.png)
+3. Add the three entries in main.gd (portraits, names, colors)
+4. Write at least 2 missions in star_map_data.gd
+5. Look for one natural crossover with an existing crew member
+6. Add the new chain to the Quick Reference section above
+
+Crew members don't need to be on the player's ship. They can appear as NPCs
+who send missions from ports -- which is how Tumbler, Murphy, Bella, Rina,
+River, and Fluffy currently work. They're contacts, not permanent crew.
+
+
+================================================================================
+  FILE LOCATIONS SUMMARY
+================================================================================
+
+scripts/star_map_data.gd    All mission data (PERCY_MISSIONS, CREW_MISSIONS)
+scripts/main.gd             CREW_PORTRAITS, CREW_DISPLAY_NAMES, CREW_MARKER_COLORS
+assets/pictures/crew/       Portrait .png files (896x1200 recommended)
+
+================================================================================

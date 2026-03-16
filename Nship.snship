@@ -1,4 +1,5 @@
 {
+	"active_crew_mission": "",
 	"active_percy_mission": "",
 	"connections": [
 		{
@@ -56,7 +57,7 @@
 			"role": "Technician",
 			"shore_leave_days": 0.0,
 			"status": "active",
-			"trips": 12
+			"trips": 12.0
 		},
 		{
 			"assigned_to": "node_2",
@@ -67,7 +68,7 @@
 			"role": "Engineer",
 			"shore_leave_days": 0.0,
 			"status": "active",
-			"trips": 11
+			"trips": 11.0
 		},
 		{
 			"assigned_to": "node_3",
@@ -78,7 +79,7 @@
 			"role": "Officer",
 			"shore_leave_days": 0.0,
 			"status": "active",
-			"trips": 11
+			"trips": 11.0
 		},
 		{
 			"assigned_to": "node_6",
@@ -89,7 +90,7 @@
 			"role": "Engineer",
 			"shore_leave_days": 0.0,
 			"status": "active",
-			"trips": 4
+			"trips": 4.0
 		},
 		{
 			"assigned_to": "node_5",
@@ -100,7 +101,7 @@
 			"role": "Security",
 			"shore_leave_days": 0.0,
 			"status": "active",
-			"trips": 4
+			"trips": 4.0
 		},
 		{
 			"assigned_to": "node_8",
@@ -111,21 +112,22 @@
 			"role": "Security",
 			"shore_leave_days": 0.0,
 			"status": "active",
-			"trips": 4
+			"trips": 4.0
 		},
 		{
 			"assigned_to": "node_7",
-			"efficiency": 0.82,
+			"efficiency": 0.843137379132287,
 			"id": "crew_10",
 			"name": "Ash Asari",
 			"portrait": "res://assets/pictures/profiles/alien_crystal.png",
 			"role": "Officer",
 			"shore_leave_days": 0.0,
 			"status": "active",
-			"trips": 4
+			"trips": 4.0
 		}
 	],
-	"crew_counter": 10,
+	"crew_counter": 11,
+	"crew_missions_completed": [],
 	"current_system": "station_k",
 	"discovered_systems": [
 		"sol",
@@ -719,9 +721,9 @@
 			"wages": 1792.0
 		},
 		{
-			"crew": 7,
-			"days": 4,
-			"earned": 875,
+			"crew": 7.0,
+			"days": 4.0,
+			"earned": 875.0,
 			"from": "polaris_st",
 			"lines": [
 				"[color=#55cc77]⬡ Hull adjacency: 25 room pairs detected[/color]",
@@ -752,13 +754,13 @@
 			],
 			"to": "proxima",
 			"to_name": "Proxima Centauri",
-			"voyage": 12,
-			"wages": 224
+			"voyage": 12.0,
+			"wages": 224.0
 		},
 		{
-			"crew": 7,
-			"days": 5,
-			"earned": 1050,
+			"crew": 7.0,
+			"days": 5.0,
+			"earned": 1050.0,
 			"from": "proxima",
 			"lines": [
 				"[color=#55cc77]⬡ Hull adjacency: 25 room pairs detected[/color]",
@@ -784,8 +786,8 @@
 			],
 			"to": "station_k",
 			"to_name": "Kepler Station",
-			"voyage": 13,
-			"wages": 280
+			"voyage": 13.0,
+			"wages": 280.0
 		}
 	],
 	"ship_name": "Nship",
