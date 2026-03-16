@@ -351,6 +351,8 @@ func _show_crew_hint(crew_id: String, message: String, on_dismiss: Callable = Ca
 	crew_tex.custom_minimum_size = Vector2(120, 160)
 	crew_tex.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
 	crew_tex.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+	crew_tex.size_flags_horizontal = Control.SIZE_SHRINK_BEGIN
+	crew_tex.size_flags_vertical = Control.SIZE_SHRINK_BEGIN
 	if ResourceLoader.exists(portrait_path):
 		crew_tex.texture = load(portrait_path)
 	hb.add_child(crew_tex)
@@ -430,6 +432,8 @@ func _show_shipyard(show_intro: bool, inventory: Array = []) -> void:
 		percy_tex.custom_minimum_size = Vector2(120, 160)
 		percy_tex.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
 		percy_tex.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+		percy_tex.size_flags_horizontal = Control.SIZE_SHRINK_BEGIN
+		percy_tex.size_flags_vertical = Control.SIZE_SHRINK_BEGIN
 		if ResourceLoader.exists(CREW_PORTRAITS.percy):
 			percy_tex.texture = load(CREW_PORTRAITS.percy)
 		intro_hb.add_child(percy_tex)
@@ -1365,9 +1369,11 @@ func _show_percy_mission_dialog(mission_id: String) -> void:
 	var tex := load(CREW_PORTRAITS.percy)
 	if tex:
 		portrait.texture = tex
-	portrait.expand_mode  = TextureRect.EXPAND_FIT_WIDTH_PROPORTIONAL
+	portrait.expand_mode  = TextureRect.EXPAND_IGNORE_SIZE
 	portrait.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
 	portrait.custom_minimum_size = Vector2(120, 160)
+	portrait.size_flags_horizontal = Control.SIZE_SHRINK_BEGIN
+	portrait.size_flags_vertical = Control.SIZE_SHRINK_BEGIN
 	hb.add_child(portrait)
 
 	var speech_vb := VBoxContainer.new()
@@ -1509,9 +1515,11 @@ func _show_crew_mission_dialog(mission_id: String) -> void:
 	var portrait := TextureRect.new()
 	if ResourceLoader.exists(portrait_path):
 		portrait.texture = load(portrait_path)
-	portrait.expand_mode  = TextureRect.EXPAND_FIT_WIDTH_PROPORTIONAL
+	portrait.expand_mode  = TextureRect.EXPAND_IGNORE_SIZE
 	portrait.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
 	portrait.custom_minimum_size = Vector2(120, 160)
+	portrait.size_flags_horizontal = Control.SIZE_SHRINK_BEGIN
+	portrait.size_flags_vertical = Control.SIZE_SHRINK_BEGIN
 	hb.add_child(portrait)
 
 	var speech_vb := VBoxContainer.new()

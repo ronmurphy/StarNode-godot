@@ -46,7 +46,7 @@
 		}
 	],
 	"counter": 8,
-	"credits": 22556,
+	"credits": 25083,
 	"crew": [
 		{
 			"assigned_to": "node_1",
@@ -57,87 +57,92 @@
 			"role": "Technician",
 			"shore_leave_days": 0.0,
 			"status": "active",
-			"trips": 12.0
+			"trips": 16
 		},
 		{
 			"assigned_to": "node_2",
-			"efficiency": 0.89,
+			"efficiency": 0.94,
 			"id": "crew_5",
 			"name": "Vash Jorik",
 			"portrait": "res://assets/pictures/profiles/alien_gaseous.png",
 			"role": "Engineer",
 			"shore_leave_days": 0.0,
 			"status": "active",
-			"trips": 11.0
+			"trips": 15
 		},
 		{
 			"assigned_to": "node_3",
-			"efficiency": 0.87,
+			"efficiency": 0.92,
 			"id": "crew_6",
 			"name": "Kova Nexis",
 			"portrait": "res://assets/pictures/profiles/space_dog_terrier.png",
 			"role": "Officer",
 			"shore_leave_days": 0.0,
 			"status": "active",
-			"trips": 11.0
+			"trips": 15
 		},
 		{
 			"assigned_to": "node_6",
-			"efficiency": 0.8,
+			"efficiency": 0.84,
 			"id": "crew_7",
 			"name": "Kira Jorik",
 			"portrait": "res://assets/pictures/profiles/alien_luminar.png",
 			"role": "Engineer",
 			"shore_leave_days": 0.0,
 			"status": "active",
-			"trips": 4.0
+			"trips": 8
 		},
 		{
 			"assigned_to": "node_5",
-			"efficiency": 0.94,
+			"efficiency": 0.98,
 			"id": "crew_8",
 			"name": "Hex Rynn",
 			"portrait": "res://assets/pictures/profiles/human_male.png",
 			"role": "Security",
 			"shore_leave_days": 0.0,
 			"status": "active",
-			"trips": 4.0
+			"trips": 8
 		},
 		{
 			"assigned_to": "node_8",
-			"efficiency": 0.74,
+			"efficiency": 0.78,
 			"id": "crew_9",
 			"name": "Lyra Rynn",
 			"portrait": "res://assets/pictures/profiles/alien_insectoid.png",
 			"role": "Security",
 			"shore_leave_days": 0.0,
 			"status": "active",
-			"trips": 4.0
+			"trips": 8
 		},
 		{
 			"assigned_to": "node_7",
-			"efficiency": 0.843137379132287,
+			"efficiency": 0.88,
 			"id": "crew_10",
 			"name": "Ash Asari",
 			"portrait": "res://assets/pictures/profiles/alien_crystal.png",
 			"role": "Officer",
 			"shore_leave_days": 0.0,
 			"status": "active",
-			"trips": 4.0
+			"trips": 8
 		}
 	],
 	"crew_counter": 11,
-	"crew_missions_completed": [],
-	"current_system": "station_k",
+	"crew_missions_completed": [
+		"mika_01_session_notes",
+		"bella_01_the_gala",
+		"zester_01_bar_tab"
+	],
+	"current_system": "alpha_cen",
 	"discovered_systems": [
 		"sol",
 		"proxima",
 		"alpha_cen",
 		"station_k",
 		"barnard",
-		"new_haven"
+		"new_haven",
+		"cygnus"
 	],
-	"jobs_completed": 13,
+	"jobs_completed": 17,
 	"nodes": [
 		{
 			"def_id": "bsg_tylium",
@@ -230,7 +235,8 @@
 	],
 	"percy_missions_completed": [
 		"percy_01_first_steps",
-		"percy_02_kepler_run"
+		"percy_02_kepler_run",
+		"percy_03_barnard_trace"
 	],
 	"ship_3d_layout": {
 		"node_1": {
@@ -788,6 +794,141 @@
 			"to_name": "Kepler Station",
 			"voyage": 13.0,
 			"wages": 280.0
+		},
+		{
+			"crew": 7,
+			"days": 9,
+			"earned": 1781,
+			"from": "station_k",
+			"lines": [
+				"[color=#55cc77]* Hull adjacency: 25 room pairs detected[/color]",
+				"[color=#4488ff]===  Nship  --  Percy Mission  --  9 days to Barnard's Star  ===[/color]",
+				"[color=#6688cc]  Departing Kepler Station. Engines spooling up…[/color]",
+				"[color=#88aaff]  Course locked. Initiating FTL burn.[/color]",
+				"[color=#55cc77]* Adjacency: -2 wear on Tylium Reactor[/color]",
+				"[color=#55cc77]* Adjacency: -2 wear on Navigation Chamber[/color]",
+				"[color=#55cc77]* Adjacency: -1 wear on Cargo Hold[/color]",
+				"[color=#55cc77]* Adjacency: -1 wear on Cargo Hold[/color]",
+				"[color=#55cc77]* Adjacency: -1 wear on Torpedo Bay[/color]",
+				"[color=#55cc77]* Adjacency: -2 wear on Rail Gun[/color]",
+				"[color=#55cc77]* Adjacency: -2 wear on Holtzman Generator[/color]",
+				"[color=#55cc77]* Adjacency: -2 wear on Impulse Engine[/color]",
+				"[color=#556677]  Routine transit.[/color]",
+				"[color=#44aaff][shield] Security crew mitigated 4 damage[/color]",
+				"[color=#55cc77]* Hull synergy: Tactical adjacency reduced 2 damage[/color]",
+				"[color=#ff5533][!] [b]Bounty Hunter[/b] attacking! -9 dur to [b]Tylium Reactor[/b][/color]",
+				"[color=#88ccff][target] 2 Tactical room(s) engaging... (58% hit)[/color]",
+				"[color=#ff8844]X Missed! [b]Bounty Hunter[/b] returns fire![/color]",
+				"[color=#ff3311][!] Retaliation! -4 dur to [b]Torpedo Bay[/b][/color]",
+				"[color=#44aaff][+] Officer negotiated +26 cr bonus[/color]",
+				"[color=#55cc77]* Hull synergy: Command adjacency +26 cr[/color]",
+				"[color=#44ee88][OK] Diplomatic contract -- +202 cr[/color]",
+				"",
+				"[color=#ffd050]===  Arrived at Barnard's Star  ===[/color]",
+				"[color=#ffd050]Net earned: 1781 credits[/color]",
+				"[color=#ff8844]Crew wages: -504 cr[/color]"
+			],
+			"promotions": [
+				"Vash Jorik is now Elite! (efficiency +5%)",
+				"Kova Nexis is now Elite! (efficiency +5%)"
+			],
+			"to": "barnard",
+			"to_name": "Barnard's Star",
+			"voyage": 14,
+			"wages": 504
+		},
+		{
+			"crew": 7,
+			"days": 4,
+			"earned": 768,
+			"from": "barnard",
+			"lines": [
+				"[color=#55cc77]* Hull adjacency: 25 room pairs detected[/color]",
+				"[color=#4488ff]===  Nship  --  Counselor Mika Mission  --  4 days to Kepler Station  ===[/color]",
+				"[color=#6688cc]  Departing Barnard's Star. Engines spooling up…[/color]",
+				"[color=#88aaff]  Course locked. Initiating FTL burn.[/color]",
+				"[color=#44aaff][+] Officer negotiated +29 cr bonus[/color]",
+				"[color=#55cc77]* Hull synergy: Command adjacency +28 cr[/color]",
+				"[color=#44ee88][OK] Profitable cargo run -- +220 cr[/color]",
+				"[color=#55cc77]* Adjacency: -2 wear on Tylium Reactor[/color]",
+				"[color=#55cc77]* Adjacency: -2 wear on Navigation Chamber[/color]",
+				"[color=#55cc77]* Adjacency: -1 wear on Cargo Hold[/color]",
+				"[color=#55cc77]* Adjacency: -1 wear on Cargo Hold[/color]",
+				"[color=#55cc77]* Adjacency: -1 wear on Torpedo Bay[/color]",
+				"[color=#55cc77]* Adjacency: -2 wear on Rail Gun[/color]",
+				"[color=#55cc77]* Adjacency: -2 wear on Holtzman Generator[/color]",
+				"[color=#55cc77]* Adjacency: -2 wear on Impulse Engine[/color]",
+				"",
+				"[color=#ffd050]===  Arrived at Kepler Station  ===[/color]",
+				"[color=#ffd050]Net earned: 768 credits[/color]",
+				"[color=#ff8844]Crew wages: -224 cr[/color]"
+			],
+			"promotions": [],
+			"to": "station_k",
+			"to_name": "Kepler Station",
+			"voyage": 15,
+			"wages": 224
+		},
+		{
+			"crew": 7,
+			"days": 4,
+			"earned": 520,
+			"from": "station_k",
+			"lines": [
+				"[color=#55cc77]* Hull adjacency: 25 room pairs detected[/color]",
+				"[color=#4488ff]===  Nship  --  Bella Mission  --  4 days to Kepler Station  ===[/color]",
+				"[color=#6688cc]  Departing Kepler Station. Engines spooling up…[/color]",
+				"[color=#88aaff]  Course locked. Initiating FTL burn.[/color]",
+				"[color=#44aaff][shield] Security crew mitigated 6 damage[/color]",
+				"[color=#55cc77]* Hull synergy: Tactical adjacency reduced 4 damage[/color]",
+				"[color=#ff5533][!] Combat! -13 dur to [b]Tylium Reactor[/b].[/color]",
+				"",
+				"[color=#ffd050]===  Arrived at Kepler Station  ===[/color]",
+				"[color=#ffd050]Net earned: 520 credits[/color]",
+				"[color=#ff8844]Crew wages: -224 cr[/color]"
+			],
+			"promotions": [
+				"Kira Jorik is now Veteran! (efficiency +4%)",
+				"Hex Rynn is now Veteran! (efficiency +4%)",
+				"Lyra Rynn is now Veteran! (efficiency +4%)",
+				"Ash Asari is now Veteran! (efficiency +4%)"
+			],
+			"to": "station_k",
+			"to_name": "Kepler Station",
+			"voyage": 16,
+			"wages": 224
+		},
+		{
+			"crew": 7,
+			"days": 2,
+			"earned": 570,
+			"from": "station_k",
+			"lines": [
+				"[color=#55cc77]* Hull adjacency: 25 room pairs detected[/color]",
+				"[color=#4488ff]===  Nship  --  Ensign Zester Mission  --  2 days to Alpha Centauri  ===[/color]",
+				"[color=#6688cc]  Departing Kepler Station. Engines spooling up…[/color]",
+				"[color=#88aaff]  Course locked. Initiating FTL burn.[/color]",
+				"[color=#55cc77]* Adjacency: -2 wear on Tylium Reactor[/color]",
+				"[color=#55cc77]* Adjacency: -2 wear on Navigation Chamber[/color]",
+				"[color=#55cc77]* Adjacency: -1 wear on Cargo Hold[/color]",
+				"[color=#55cc77]* Adjacency: -1 wear on Cargo Hold[/color]",
+				"[color=#55cc77]* Adjacency: -1 wear on Torpedo Bay[/color]",
+				"[color=#55cc77]* Adjacency: -2 wear on Rail Gun[/color]",
+				"[color=#55cc77]* Adjacency: -2 wear on Holtzman Generator[/color]",
+				"[color=#55cc77]* Adjacency: -2 wear on Impulse Engine[/color]",
+				"[color=#44aaff][+] Officer negotiated +36 cr bonus[/color]",
+				"[color=#55cc77]* Hull synergy: Command adjacency +35 cr[/color]",
+				"[color=#44ee88][OK] Profitable cargo run -- +270 cr[/color]",
+				"",
+				"[color=#ffd050]===  Arrived at Alpha Centauri  ===[/color]",
+				"[color=#ffd050]Net earned: 570 credits[/color]",
+				"[color=#ff8844]Crew wages: -112 cr[/color]"
+			],
+			"promotions": [],
+			"to": "alpha_cen",
+			"to_name": "Alpha Centauri",
+			"voyage": 17,
+			"wages": 112
 		}
 	],
 	"ship_name": "Nship",
@@ -799,6 +940,22 @@
 		[
 			"proxima",
 			"station_k"
+		],
+		[
+			"station_k",
+			"barnard"
+		],
+		[
+			"barnard",
+			"station_k"
+		],
+		[
+			"station_k",
+			"station_k"
+		],
+		[
+			"station_k",
+			"alpha_cen"
 		]
 	],
 	"version": 1
