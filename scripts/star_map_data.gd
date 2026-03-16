@@ -49,7 +49,7 @@ func find_system(id: String) -> Dictionary:
 	return {}
 
 
-func pick_destination(days: int, current_id: String) -> Dictionary:
+func pick_destination(days: int, current_id: String, discovered: Array = []) -> Dictionary:
 	var current_sys := find_system(current_id)
 	if current_sys.is_empty():
 		current_sys = SYSTEMS[0]
@@ -62,16 +62,25 @@ func pick_destination(days: int, current_id: String) -> Dictionary:
 	for s in SYSTEMS:
 		if s.id == current_id:
 			continue
+		if not discovered.is_empty() and not discovered.has(s.id):
+			continue
 		var d := current_pos.distance_to(s.pos)
 		if abs(d - target_dist) <= tolerance:
 			candidates.append(s)
 
 	if candidates.is_empty():
-		# Fall back: pick the system whose distance is closest to target
 		var all_others: Array = []
 		for s in SYSTEMS:
-			if s.id != current_id:
-				all_others.append(s)
+			if s.id == current_id:
+				continue
+			if not discovered.is_empty() and not discovered.has(s.id):
+				continue
+			all_others.append(s)
+		if all_others.is_empty():
+			# Fallback: if no discovered systems match, use all
+			for s in SYSTEMS:
+				if s.id != current_id:
+					all_others.append(s)
 		all_others.sort_custom(func(a: Dictionary, b: Dictionary) -> bool:
 			return abs(current_pos.distance_to(a.pos) - target_dist) \
 			     < abs(current_pos.distance_to(b.pos) - target_dist))
@@ -138,17 +147,19 @@ const JOB_TYPES: Array = [
 	{ "tag": "Colony Supply",      "desc": "Deliver building materials to %s.",                  "pay_mult": 1.05 },
 ]
 
-func generate_job_listings(current_id: String) -> Array:
+func generate_job_listings(current_id: String, discovered: Array = []) -> Array:
 	## Returns 1–5 random job listings from the current system.
 	var current_sys := find_system(current_id)
 	if current_sys.is_empty():
 		current_sys = SYSTEMS[0]
 	var current_pos: Vector3 = current_sys.pos
 
-	# Gather all reachable destinations (exclude current)
+	# Gather all reachable destinations (exclude current, filter by discovered)
 	var others: Array = []
 	for s in SYSTEMS:
 		if s.id == current_id:
+			continue
+		if not discovered.is_empty() and not discovered.has(s.id):
 			continue
 		others.append(s)
 	others.shuffle()
@@ -198,3 +209,72 @@ func generate_job_listings(current_id: String) -> Array:
 	listings.sort_custom(func(a: Dictionary, b: Dictionary) -> bool:
 		return a.days < b.days)
 	return listings
+
+
+# ── Percy story missions ─────────────────────────────────────────────────────
+# Sequential chain — each requires the previous completed.
+# trigger types: "jobs_completed" (>= value), "system_discovered" (value in discovered)
+const PERCY_MISSIONS: Array = [
+	{
+		"id":       "percy_01_first_steps",
+		"title":    "First Steps",
+		"location": "proxima",
+		"trigger":  { "type": "jobs_completed", "value": 2 },
+		"desc":     "Investigate a signal anomaly near Proxima Centauri.",
+		"percy_msg": "\"Captain, I've been monitoring comm traffic and there's a strange repeating signal coming from Proxima. It's not natural — could be a buoy, could be something else. Swing by and take a look?\"",
+		"days":     4,
+		"reward":   500,
+		"on_complete_discover": [],
+	},
+	{
+		"id":       "percy_02_kepler_run",
+		"title":    "Kepler Rendezvous",
+		"location": "station_k",
+		"trigger":  { "type": "jobs_completed", "value": 5 },
+		"desc":     "Meet Percy's contact at Kepler Station for intel on unusual ship movements.",
+		"percy_msg": "\"I've got an old friend at Kepler — retired Fleet Intelligence. She says there's been chatter about unmarked ships near the mid-rim. Dock at Kepler and I'll set up a meeting.\"",
+		"days":     5,
+		"reward":   800,
+		"on_complete_discover": ["barnard", "new_haven"],
+	},
+	{
+		"id":       "percy_03_barnard_trace",
+		"title":    "The Cold Trail",
+		"location": "barnard",
+		"trigger":  { "type": "system_discovered", "value": "barnard" },
+		"desc":     "Recover a flight recorder from a derelict near Barnard's Star.",
+		"percy_msg": "\"That derelict near Barnard's Star — it's one of the unmarked ships we've been tracking. If we can pull its nav logs, we'll know where it came from. Are you in?\"",
+		"days":     9,
+		"reward":   1200,
+		"on_complete_discover": ["cygnus"],
+	},
+	{
+		"id":       "percy_04_cygnus_signal",
+		"title":    "Into the Nebula",
+		"location": "cygnus",
+		"trigger":  { "type": "system_discovered", "value": "cygnus" },
+		"desc":     "Follow the derelict's nav logs deep into Cygnus Reach.",
+		"percy_msg": "\"The flight recorder data is clear — that ship came from deep inside Cygnus Reach. The nebula will mess with our comms, but we need to see what's out there. This is getting bigger than I expected.\"",
+		"days":     16,
+		"reward":   2000,
+		"on_complete_discover": ["deneb", "hadley", "scylla"],
+	},
+	{
+		"id":       "percy_05_frontier_contact",
+		"title":    "Edge of the Map",
+		"location": "frontier",
+		"trigger":  { "type": "jobs_completed", "value": 12 },
+		"desc":     "Meet an informant at Frontier Station who knows what those ships were doing.",
+		"percy_msg": "\"I've pulled every string I have. There's someone at Frontier Station who knows what those ships were doing in Cygnus. Meet them, get the data, and get out. The Rim is no place to linger.\"",
+		"days":     20,
+		"reward":   3500,
+		"on_complete_discover": ["elysium", "kronos", "the_rim"],
+	},
+]
+
+
+func find_percy_mission(id: String) -> Dictionary:
+	for m in PERCY_MISSIONS:
+		if m.id == id:
+			return m
+	return {}

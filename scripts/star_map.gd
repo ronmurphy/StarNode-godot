@@ -15,6 +15,7 @@ var _world:        Node3D
 var _camera:       Camera3D
 var _ship_pivot:   Node3D      # moves & rotates along path
 var _engine_glow:  MeshInstance3D
+var _engine_trail: GPUParticles3D
 
 # ── Travel state ─────────────────────────────────────────────────────────────
 var _path_ids:    Array[String]  = []   # system IDs in travel order
@@ -129,9 +130,15 @@ func _build_environment() -> void:
 	env.ambient_light_energy = 1.2
 	env.glow_enabled          = true
 	env.glow_normalized       = false
-	env.glow_intensity        = 1.1
-	env.glow_bloom            = 0.25
+	env.glow_intensity        = 1.3
+	env.glow_bloom            = 0.35
 	env.glow_blend_mode       = Environment.GLOW_BLEND_MODE_ADDITIVE
+	env.glow_hdr_threshold    = 0.8
+	# Subtle fog for depth
+	env.fog_enabled           = true
+	env.fog_light_color       = Color(0.03, 0.04, 0.08, 1.0)
+	env.fog_density           = 0.0008
+	env.fog_light_energy      = 0.2
 	env_node.environment = env
 	_world.add_child(env_node)
 
@@ -145,24 +152,28 @@ func _build_environment() -> void:
 
 
 func _build_bg_stars() -> void:
-	# Shared emissive mesh for all background stars
-	var mesh := SphereMesh.new()
-	mesh.radius = 0.07
-	mesh.height = 0.14
-	mesh.radial_segments = 4
-	mesh.rings = 2
-	var mat := StandardMaterial3D.new()
-	mat.shading_mode       = BaseMaterial3D.SHADING_MODE_UNSHADED
-	mat.emission_enabled   = true
-	mat.emission           = Color.WHITE
-	mat.emission_energy_multiplier = 2.0
-	mesh.surface_set_material(0, mat)
+	# Star color palette for visual variety
+	var star_colors: Array[Color] = [
+		Color(1.0,  1.0,  1.0),    # white
+		Color(0.85, 0.90, 1.0),    # blue-white
+		Color(0.70, 0.80, 1.0),    # light blue
+		Color(1.0,  0.95, 0.80),   # warm white
+		Color(1.0,  0.85, 0.60),   # yellow
+		Color(1.0,  0.70, 0.50),   # orange
+		Color(0.60, 0.70, 1.0),    # blue
+	]
+
+	var base_mesh := SphereMesh.new()
+	base_mesh.radius = 0.07
+	base_mesh.height = 0.14
+	base_mesh.radial_segments = 4
+	base_mesh.rings = 2
 
 	var rng := RandomNumberGenerator.new()
-	rng.seed = 42314  # fixed seed = same stars every run
-	for _i in 600:
+	rng.seed = 42314
+	for _i in 700:
 		var inst := MeshInstance3D.new()
-		inst.mesh = mesh
+		inst.mesh = base_mesh
 		var theta := rng.randf() * TAU
 		var phi   := acos(2.0 * rng.randf() - 1.0)
 		var r     := rng.randf_range(180.0, 320.0)
@@ -170,6 +181,17 @@ func _build_bg_stars() -> void:
 			r * sin(phi) * cos(theta),
 			r * cos(phi),
 			r * sin(phi) * sin(theta))
+		# Per-star color + brightness variation
+		var mat := StandardMaterial3D.new()
+		mat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+		mat.emission_enabled = true
+		var star_clr: Color = star_colors[rng.randi() % star_colors.size()]
+		mat.emission = star_clr
+		mat.emission_energy_multiplier = rng.randf_range(1.2, 3.5)
+		inst.set_surface_override_material(0, mat)
+		# Size variation: some stars bigger/brighter
+		var sz := rng.randf_range(0.6, 1.8)
+		inst.scale = Vector3(sz, sz, sz)
 		_world.add_child(inst)
 
 
@@ -358,7 +380,9 @@ func _build_from_layout(vis: Node3D, ship_nodes: Array, textures: Dictionary) ->
 			room_container.rotation_degrees.y = entry.get("rot_y", 0.0)
 			var s: float = entry.get("scale", 1.0)
 			room_container.scale = Vector3(s, s, s)
-		max_z = maxf(max_z, room_container.position.z)
+		# Track rearmost extent including scale and box depth
+		var room_rear := room_container.position.z + box_sz.z * 0.5 * room_container.scale.z
+		max_z = maxf(max_z, room_rear)
 
 		_build_room_shape(room_container, rtype, universe, cost, mat, box_sz)
 		_add_room_lights(room_container, rtype, box_sz)
@@ -516,6 +540,52 @@ func _attach_engine_glow(vis: Node3D, rear_z: float) -> void:
 	eng_light.omni_range   = 8.0
 	_engine_glow.add_child(eng_light)
 
+	# Engine exhaust trail particles
+	_engine_trail = GPUParticles3D.new()
+	_engine_trail.amount = 60
+	_engine_trail.lifetime = 1.5
+	_engine_trail.speed_scale = 1.0
+	_engine_trail.local_coords = false  # particles stay in world space = trail effect
+	_engine_trail.visibility_aabb = AABB(Vector3(-20, -20, -20), Vector3(40, 40, 40))
+
+	var trail_mat := ParticleProcessMaterial.new()
+	trail_mat.direction = Vector3(0.0, 0.0, 1.0)   # emit backward
+	trail_mat.spread = 8.0
+	trail_mat.initial_velocity_min = 1.5
+	trail_mat.initial_velocity_max = 3.0
+	trail_mat.gravity = Vector3.ZERO
+	trail_mat.damping_min = 1.0
+	trail_mat.damping_max = 2.0
+	trail_mat.scale_min = 0.6
+	trail_mat.scale_max = 1.2
+	trail_mat.color = Color(0.3, 0.55, 1.0, 0.7)
+	var trail_gradient := GradientTexture1D.new()
+	var grad := Gradient.new()
+	grad.set_color(0, Color(0.5, 0.7, 1.0, 0.8))
+	grad.add_point(0.4, Color(0.25, 0.45, 0.9, 0.5))
+	grad.set_color(2, Color(0.1, 0.2, 0.6, 0.0))
+	trail_gradient.gradient = grad
+	trail_mat.color_ramp = trail_gradient
+	_engine_trail.process_material = trail_mat
+
+	var trail_mesh := SphereMesh.new()
+	trail_mesh.radius = 0.06
+	trail_mesh.height = 0.12
+	trail_mesh.radial_segments = 4
+	trail_mesh.rings = 2
+	var trail_draw_mat := StandardMaterial3D.new()
+	trail_draw_mat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+	trail_draw_mat.emission_enabled = true
+	trail_draw_mat.emission = Color(0.3, 0.55, 1.0)
+	trail_draw_mat.emission_energy_multiplier = 2.5
+	trail_draw_mat.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+	trail_draw_mat.vertex_color_use_as_albedo = true
+	trail_mesh.surface_set_material(0, trail_draw_mat)
+	_engine_trail.draw_pass_1 = trail_mesh
+
+	_engine_trail.position = Vector3(0.0, 0.0, rear_z + 0.3)
+	vis.add_child(_engine_trail)
+
 
 func _build_camera() -> void:
 	_camera = Camera3D.new()
@@ -530,6 +600,7 @@ func _build_hud() -> void:
 	var top_panel := PanelContainer.new()
 	top_panel.set_anchors_and_offsets_preset(Control.PRESET_TOP_WIDE)
 	top_panel.custom_minimum_size.y = 50
+	top_panel.mouse_filter = Control.MOUSE_FILTER_PASS
 	var top_style := StyleBoxFlat.new()
 	top_style.bg_color = Color(0.04, 0.06, 0.12, 0.86)
 	top_panel.add_theme_stylebox_override("panel", top_style)
@@ -580,6 +651,7 @@ func _build_hud() -> void:
 	var bot_panel := PanelContainer.new()
 	bot_panel.set_anchors_and_offsets_preset(Control.PRESET_BOTTOM_WIDE)
 	bot_panel.custom_minimum_size.y = 115
+	bot_panel.mouse_filter = Control.MOUSE_FILTER_PASS
 	var bot_style := StyleBoxFlat.new()
 	bot_style.bg_color = Color(0.03, 0.05, 0.10, 0.82)
 	bot_panel.add_theme_stylebox_override("panel", bot_style)
@@ -588,6 +660,7 @@ func _build_hud() -> void:
 	_log_box = RichTextLabel.new()
 	_log_box.bbcode_enabled   = true
 	_log_box.scroll_following = true
+	_log_box.mouse_filter     = Control.MOUSE_FILTER_IGNORE
 	_log_box.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	_log_box.add_theme_font_size_override("normal_font_size", 11)
 	bot_panel.add_child(_log_box)
@@ -639,7 +712,8 @@ func _init_job() -> void:
 	if not dest_id.is_empty():
 		dest_sys = StarMapData.find_system(dest_id)
 	if dest_sys.is_empty():
-		dest_sys = StarMapData.pick_destination(days, cur_sys)
+		var discovered: Array = _params.get("discovered", [])
+		dest_sys = StarMapData.pick_destination(days, cur_sys, discovered)
 	_path_ids = StarMapData.build_path(cur_sys, dest_sys.id, days)
 
 	for sid in _path_ids:
@@ -710,6 +784,11 @@ func _init_job() -> void:
 	if pwr < 0:
 		_earned = int(_earned * 0.7)
 
+	# Cargo loading bonus from puzzle
+	var cargo_bonus: int = _params.get("cargo_bonus", 0)
+	if cargo_bonus > 0:
+		_earned += cargo_bonus
+
 	# ── Pre-roll travel events ───────────────────────────────────────────────
 	_pre_roll_events(days, node_count)
 
@@ -759,6 +838,12 @@ func _pre_roll_events(days: int, node_count: int) -> void:
 	var n_events: int = maxi(1, days / 3)
 	var used: Array = []
 
+	# Scale damage by job pay — every 50 cr/day above 0 adds bite
+	var pay: int = _params.get("job_pay_per_day", 0)
+	var pay_tier: int = clampi(pay / 50, 0, 3)   # 0-3 based on ~0, 50, 100, 150+ cr/day
+	var dmg_min: int = 5  + pay_tier * 4          # 5 / 9 / 13 / 17
+	var dmg_max: int = 22 + pay_tier * 8          # 22 / 30 / 38 / 46
+
 	for _i in range(n_events):
 		# Pick a milestone (0..1 along whole journey), avoid clustering
 		var at := rng.randf_range(0.05, 0.95)
@@ -776,9 +861,25 @@ func _pre_roll_events(days: int, node_count: int) -> void:
 		var roll := rng.randi_range(1, 100)
 		var ev:  Dictionary
 		if roll <= 20 and node_count > 0:
-			var dmg := rng.randi_range(5, 22)
+			var dmg := rng.randi_range(dmg_min, dmg_max)
 			var tgt := rng.randi_range(0, node_count - 1)
-			ev = { "at":at, "type":"damage", "amount":dmg, "target_idx":tgt }
+			if roll <= 14:
+				# Hostile attacker — Tactical rooms can fight back
+				# Higher-paying jobs attract tougher enemies
+				var attacker_table := [
+					{"name": "Pirate Scout",   "sal_min": 50,  "sal_max": 180},
+					{"name": "Raider",         "sal_min": 120, "sal_max": 320},
+					{"name": "Bounty Hunter",  "sal_min": 280, "sal_max": 550},
+					{"name": "Patrol Craft",   "sal_min": 400, "sal_max": 750},
+				]
+				var att_min_idx: int = maxi(0, pay_tier - 1)
+				var att_max_idx: int = mini(attacker_table.size() - 1, pay_tier + 1)
+				var att: Dictionary = attacker_table[rng.randi_range(att_min_idx, att_max_idx)]
+				ev = { "at":at, "type":"combat", "amount":dmg, "target_idx":tgt,
+					"attacker": att.name, "sal_min": att.sal_min, "sal_max": att.sal_max }
+			else:
+				# Hazard damage — no counter-fire (asteroid, malfunction, etc.)
+				ev = { "at":at, "type":"damage", "amount":dmg, "target_idx":tgt }
 		elif roll <= 40:
 			var bonus := rng.randi_range(120, 450)
 			ev = { "at":at, "type":"bonus", "amount":bonus, "msg":"Diplomatic contract" }
@@ -905,8 +1006,7 @@ func _update_camera(delta: float, forward: Vector3) -> void:
 
 
 func _update_system_fades(delta: float) -> void:
-	## When the ship overlaps a star system body, fade it to ~88% transparent
-	## so the ship stays visible during departure and fly-throughs.
+	## Smooth distance-based fade: systems become transparent as ship approaches.
 	## Uses raw delta so fade speed is independent of the time-scale multiplier.
 	var ship_pos := _ship_pivot.global_position
 	for sys_id in _sys_nodes:
@@ -918,19 +1018,21 @@ func _update_system_fades(delta: float) -> void:
 			continue
 		var dist:      float = ship_pos.distance_to(sys.pos as Vector3)
 		var radius:    float = float(sys.get("size", 2.0)) * 0.5
-		var near:      bool  = dist < radius + 3.5
-		var target_t:  float = 0.88 if near else 0.0
-		var spd:       float = delta * 5.0
+		var fade_start: float = radius + 6.0  # start fading at this distance
+		var fade_end:   float = radius + 1.5  # fully transparent at this distance
+		# Smooth gradient: 0 = fully opaque, 0.88 = fully transparent
+		var target_t: float = 0.0
+		if dist < fade_start:
+			target_t = clampf(1.0 - (dist - fade_end) / (fade_start - fade_end), 0.0, 1.0) * 0.88
+		var spd: float = delta * 5.0
 		for child in sys_node.get_children():
 			if child is MeshInstance3D:
 				(child as MeshInstance3D).transparency = \
 					lerpf((child as MeshInstance3D).transparency, target_t, spd)
 			elif child is Label3D:
-				# Label alpha goes inverse — full opacity when solid, dim when faded
 				(child as Label3D).modulate.a = \
 					lerpf((child as Label3D).modulate.a, 1.0 - target_t * 0.85, spd)
 			elif child is OmniLight3D:
-				# Dim the star light so it doesn't blow out the ship mesh
 				(child as OmniLight3D).light_energy = \
 					lerpf((child as OmniLight3D).light_energy, 1.8 * (1.0 - target_t), spd)
 
@@ -1083,6 +1185,73 @@ func _fire_event(ev: Dictionary) -> void:
 				_earned -= randi_range(50, 180)
 				_earned  = maxi(0, _earned)
 				_log("[color=#ff5533]⚠ Combat! -%d dur to [b]%s[/b].[/color]" % [dmg, target.title])
+		"combat":
+			var cidx: int        = ev.get("target_idx", 0)
+			var attacker: String = ev.get("attacker", "Unknown")
+			var cdmg: int        = ev.get("amount", 10)
+
+			# Security crew mitigation
+			var sec_eff2 := _best_crew_efficiency(crew, "Security", "Tactical")
+			if sec_eff2 > 0.0:
+				var creduction := int(float(cdmg) * sec_eff2 * 0.3)
+				cdmg = maxi(1, cdmg - creduction)
+				_log("[color=#44aaff]🛡 Security crew mitigated %d damage[/color]" % creduction)
+
+			# Tactical adjacency damage reduction
+			var cadj_pct := 0.0
+			for cnode in _ship_nodes_ref:
+				var csn := cnode as ShipNode
+				if csn == null: continue
+				var csn_def := RoomData.find(csn.def_id)
+				if csn_def.is_empty(): continue
+				if csn_def.get("type", "") != "Tactical": continue
+				var cneighbors: Array = _adjacencies.get(csn.node_uid, [])
+				for cadj in cneighbors:
+					var cadj_type: String = (cadj as Dictionary).get("type", "")
+					if cadj_type == "Command":  cadj_pct += 0.10
+					elif cadj_type == "Power":  cadj_pct += 0.05
+			cadj_pct = minf(cadj_pct, 0.25)
+			if cadj_pct > 0.0:
+				var cadj_red := int(float(cdmg) * cadj_pct)
+				if cadj_red > 0:
+					cdmg = maxi(1, cdmg - cadj_red)
+					_log("[color=#55cc77]⬡ Hull synergy: Tactical adjacency reduced %d damage[/color]" % cadj_red)
+
+			# Apply incoming hit
+			if cidx < _ship_nodes_ref.size():
+				var ctarget := _ship_nodes_ref[cidx] as ShipNode
+				ctarget.apply_damage(cdmg)
+				_spawn_explosion(cidx)
+				_log("[color=#ff5533]⚠ [b]%s[/b] attacking! -%d dur to [b]%s[/b][/color]" \
+					% [attacker, cdmg, ctarget.title])
+			_earned -= randi_range(50, 180)
+			_earned  = maxi(0, _earned)
+
+			# ── Counter-fire resolution ───────────────────────────────────────
+			var hit_pct := _tactical_hit_chance()
+			if hit_pct <= 0.0:
+				_log("[color=#888888]  No Tactical systems to return fire.[/color]")
+			else:
+				var tac_count := _count_effective_tactical()
+				_log("[color=#88ccff]🎯 %d Tactical room(s) engaging... (%.0f%% hit)[/color]" \
+					% [tac_count, hit_pct * 100.0])
+				if randf() < hit_pct:
+					var salvage := randi_range(ev.get("sal_min", 50), ev.get("sal_max", 200))
+					_earned += salvage
+					_spawn_counter_shot(true)
+					_log("[color=#44ff88]💥 Direct hit! [b]%s[/b] destroyed.[/color]" % attacker)
+					_log("[color=#ffd050]  Salvage recovered: +%d cr[/color]" % salvage)
+				else:
+					_spawn_counter_shot(false)
+					_log("[color=#ff8844]✗ Missed! [b]%s[/b] returns fire![/color]" % attacker)
+					if not _ship_nodes_ref.is_empty():
+						var tgt2 := randi_range(0, _ship_nodes_ref.size() - 1)
+						var t2   := _ship_nodes_ref[tgt2] as ShipNode
+						var dmg2 := randi_range(3, 14)
+						t2.apply_damage(dmg2)
+						_spawn_explosion(tgt2)
+						_log("[color=#ff3311]⚠ Retaliation! -%d dur to [b]%s[/b][/color]" \
+							% [dmg2, t2.title])
 		"bonus":
 			var amt: int = ev.get("amount", 100)
 
@@ -1135,6 +1304,130 @@ func _best_crew_efficiency(crew: Array, role: String, room_type: String) -> floa
 	return best
 
 
+# ── Combat helpers ────────────────────────────────────────────────────────────
+
+func _count_effective_tactical() -> int:
+	## Count Tactical rooms with enough durability to fire (>25% health).
+	var count := 0
+	for node in _ship_nodes_ref:
+		var sn := node as ShipNode
+		if sn == null: continue
+		var def := RoomData.find(sn.def_id)
+		if def.is_empty(): continue
+		if def.get("type", "") == "Tactical" and sn.max_durability > 0:
+			if float(sn.current_durability) / float(sn.max_durability) > 0.25:
+				count += 1
+	return count
+
+
+func _avg_room_health(rtype: String) -> float:
+	## Average durability ratio for all rooms of a given type (1.0 if none present).
+	var total := 0.0
+	var count := 0
+	for node in _ship_nodes_ref:
+		var sn := node as ShipNode
+		if sn == null: continue
+		var def := RoomData.find(sn.def_id)
+		if def.is_empty(): continue
+		if def.get("type", "") == rtype and sn.max_durability > 0:
+			total += float(sn.current_durability) / float(sn.max_durability)
+			count += 1
+	return total / float(count) if count > 0 else 1.0
+
+
+func _tactical_hit_chance() -> float:
+	## Hit probability for counter-fire. Diminishing returns per Tactical room.
+	## 1→35%  2→57%  3→72%  4+→80% cap. Reduced if Power rooms are damaged.
+	var tac := _count_effective_tactical()
+	if tac == 0:
+		return 0.0
+	var base := minf(1.0 - pow(0.65, float(tac)), 0.80)
+	var pwr_health := _avg_room_health("Power")
+	if pwr_health < 0.5:
+		base *= (0.6 + pwr_health * 0.8)
+	return base
+
+
+# ── Counter-shot visuals ───────────────────────────────────────────────────────
+
+func _spawn_counter_shot(hit: bool) -> void:
+	## Fires a cyan energy bolt from the ship toward the attacker direction.
+	## If hit=true, the bolt reaches its target and spawns a green impact flash.
+	if _ship_pivot == null:
+		return
+	var origin  := _ship_pivot.global_position
+	var fwd     := -_ship_pivot.global_transform.basis.z.normalized()
+	var side    := _ship_pivot.global_transform.basis.x.normalized()
+	var target_pos := origin + fwd * 9.0 + side * randf_range(-3.0, 3.0) \
+		+ Vector3.UP * randf_range(-1.0, 2.0)
+
+	# Bolt mesh (thin cyan cylinder)
+	var bolt := MeshInstance3D.new()
+	var cyl  := CylinderMesh.new()
+	cyl.top_radius    = 0.045;  cyl.bottom_radius = 0.045
+	cyl.height        = 0.85;   cyl.radial_segments = 6
+	bolt.mesh = cyl
+	var bmat := StandardMaterial3D.new()
+	bmat.shading_mode              = BaseMaterial3D.SHADING_MODE_UNSHADED
+	bmat.albedo_color              = Color(0.35, 0.85, 1.0, 1.0)
+	bmat.emission_enabled          = true
+	bmat.emission                  = Color(0.25, 0.75, 1.0)
+	bmat.emission_energy_multiplier = 5.0
+	bmat.transparency              = BaseMaterial3D.TRANSPARENCY_ALPHA
+	bolt.set_surface_override_material(0, bmat)
+	bolt.global_position = origin
+	if target_pos.distance_squared_to(origin) > 0.01:
+		bolt.look_at(target_pos, Vector3.UP)
+		bolt.rotate_object_local(Vector3.RIGHT, deg_to_rad(90.0))
+	_world.add_child(bolt)
+
+	var tw := create_tween()
+	tw.set_parallel(true)
+	tw.tween_property(bolt, "global_position", target_pos, 0.22).set_ease(Tween.EASE_IN)
+	tw.tween_property(bmat, "albedo_color:a", 0.0, 0.18).set_delay(0.18)
+	tw.set_parallel(false)
+	tw.tween_callback(func():
+		bolt.queue_free()
+		if hit:
+			_spawn_impact_flash(target_pos))
+
+
+func _spawn_impact_flash(pos: Vector3) -> void:
+	## Green burst at the attacker's position when the counter-shot connects.
+	var flash := MeshInstance3D.new()
+	var sphere := SphereMesh.new()
+	sphere.radius = 0.5;  sphere.height = 1.0
+	sphere.radial_segments = 10;  sphere.rings = 5
+	flash.mesh = sphere
+	var fmat := StandardMaterial3D.new()
+	fmat.shading_mode              = BaseMaterial3D.SHADING_MODE_UNSHADED
+	fmat.transparency              = BaseMaterial3D.TRANSPARENCY_ALPHA
+	fmat.albedo_color              = Color(0.35, 1.0, 0.55, 0.95)
+	fmat.emission_enabled          = true
+	fmat.emission                  = Color(0.25, 0.9, 0.45)
+	fmat.emission_energy_multiplier = 5.0
+	flash.set_surface_override_material(0, fmat)
+	flash.global_position = pos
+	_world.add_child(flash)
+
+	var light := OmniLight3D.new()
+	light.light_color  = Color(0.4, 1.0, 0.6)
+	light.light_energy = 5.0
+	light.omni_range   = 9.0
+	light.global_position = pos
+	_world.add_child(light)
+
+	var tw := create_tween()
+	tw.set_parallel(true)
+	tw.tween_property(flash, "scale", Vector3(4.5, 4.5, 4.5), 0.55).set_ease(Tween.EASE_OUT)
+	tw.tween_property(fmat,  "albedo_color:a", 0.0, 0.45).set_delay(0.1)
+	tw.tween_property(light, "light_energy", 0.0, 0.6)
+	tw.set_parallel(false)
+	tw.tween_callback(func():
+		flash.queue_free()
+		light.queue_free()).set_delay(0.6)
+
+
 func _finish_travel() -> void:
 	var days: int = _params.get("days", 7)
 	_lbl_system.text = _wp_names[-1]
@@ -1159,6 +1452,7 @@ func _finish_travel() -> void:
 			"destination_id": _path_ids[-1] if not _path_ids.is_empty() else "sol",
 			"days":           days,
 			"wages":          wages,
+			"is_percy":       _params.get("is_percy", false),
 		})
 		queue_free()
 	)

@@ -3,15 +3,19 @@
 class_name ShipNode
 extends GraphNode
 
+signal sell_requested(node: ShipNode)
+
 var def_id: String = ""
 var node_uid: String = ""          # stable ID for save/load (different from name)
 var current_durability: int = 100
 var max_durability: int = 100
 var hull_pos: Vector2 = Vector2.ZERO       # standalone hull layout position (decoupled from GraphEdit)
+var _room_cost: int = 0
 
 var _lbl_power: Label
 var _lbl_type: Label
 var _dur_bar: ProgressBar
+var _lbl_sell_value: Label
 
 
 func setup(def: Dictionary, uid: String) -> void:
@@ -21,7 +25,8 @@ func setup(def: Dictionary, uid: String) -> void:
 	current_durability = def.durability
 	max_durability = def.durability
 
-	custom_minimum_size = Vector2(160, 0)
+	custom_minimum_size = Vector2(180, 0)
+	_room_cost = def.cost
 
 	# Title bar color via theme override
 	var title_color: Color = RoomData.type_color(def.type)
@@ -70,20 +75,53 @@ func setup(def: Dictionary, uid: String) -> void:
 
 	_refresh_dur_bar()
 
+	# Sell row
+	var sell_row := HBoxContainer.new()
+	sell_row.add_theme_constant_override("separation", 4)
+	vbox.add_child(sell_row)
+
+	_lbl_sell_value = Label.new()
+	_lbl_sell_value.text = "Sell: %d cr" % sell_value()
+	_lbl_sell_value.add_theme_font_size_override("font_size", 9)
+	_lbl_sell_value.add_theme_color_override("font_color", Color(0.55, 0.55, 0.45, 1.0))
+	_lbl_sell_value.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	sell_row.add_child(_lbl_sell_value)
+
+	var btn_sell := Button.new()
+	btn_sell.text = "✕ Sell"
+	btn_sell.custom_minimum_size = Vector2(52, 20)
+	btn_sell.add_theme_font_size_override("font_size", 10)
+	btn_sell.add_theme_color_override("font_color", Color(1.0, 0.5, 0.5, 1.0))
+	btn_sell.pressed.connect(func(): sell_requested.emit(self))
+	sell_row.add_child(btn_sell)
+
 	# Left input port + right output port on slot 0 (first child = vbox)
 	set_slot(0,
 		true, 0, Color(0.30, 0.70, 1.00, 1.0),   # left input
 		true, 0, Color(0.30, 0.70, 1.00, 1.0))    # right output
 
 
+func sell_value() -> int:
+	if max_durability <= 0:
+		return 0
+	return int((_room_cost / 2.0) * (float(current_durability) / float(max_durability)))
+
+
 func apply_damage(amount: int) -> void:
 	current_durability = max(0, current_durability - amount)
 	_refresh_dur_bar()
+	_refresh_sell_label()
 
 
 func repair_full(def: Dictionary) -> void:
 	current_durability = def.durability
 	_refresh_dur_bar()
+	_refresh_sell_label()
+
+
+func _refresh_sell_label() -> void:
+	if _lbl_sell_value != null:
+		_lbl_sell_value.text = "Sell: %d cr" % sell_value()
 
 
 func _refresh_dur_bar() -> void:

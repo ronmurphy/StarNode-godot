@@ -10,7 +10,6 @@ var lbl_power: Label
 var lbl_location: Label
 var lbl_crew: Label
 var _job_board_popup: PanelContainer  # active job board modal (if open)
-var btn_delete_mode: Button
 var btn_hull_edit: Button
 var _blueprint_ctrl: ShipBlueprint
 
@@ -29,7 +28,6 @@ var _return_to_port_after_shipyard: bool = false  # reopen port when shipyard cl
 var ship_name: String = "My Ship"
 var credits: int = 2000
 var _node_counter: int = 0
-var _delete_mode: bool = false
 var _hull_edit_mode: bool = false
 var _filtered_rooms: Array = []
 var _current_system: String = "sol"   # tracked across jobs
@@ -41,6 +39,15 @@ var _jobs_completed: int       = 0    # 0 = fresh ship (starter crew auto-assign
 var _ship_log:       Array     = []   # Array of log entry Dicts: {date, from, to, days, earned, wages, lines}
 var _ship_3d_layout: Dictionary = {}  # per-room 3D offsets from layout editor
 var _layout_editor:  Control   = null # active ShipLayoutEditor (if open)
+var _cargo_puzzle:   Control   = null # active CargoPuzzle (if open)
+var _pending_job:    Dictionary = {}  # job awaiting launch after cargo puzzle
+var _discovered_systems: Array = []   # system IDs the player has charted
+var _traveled_routes:    Array = []   # [[from_id, to_id], ...] for star chart lines
+var _percy_missions_completed: Array = []
+var _active_percy_mission: String = ""
+var _log_overlay: Control = null       # captain's log overlay (if open)
+
+const CARGO_JOB_TYPES: Array = ["Freight", "Smuggling", "Colony Supply"]
 
 const SAVE_VERSION: int = 1
 
@@ -167,11 +174,12 @@ func _build_header(parent: Control) -> void:
 	btn_log.add_theme_color_override("font_color", Color(0.75, 0.70, 0.95, 1.0))
 	hbox.add_child(btn_log)
 
-	var btn_shipyard := _make_btn("🔧 Shipyard", 90, func(): _show_shipyard(false))
-	btn_shipyard.add_theme_color_override("font_color", Color(0.7, 0.9, 1.0, 1.0))
-	hbox.add_child(btn_shipyard)
+	# Shipyard removed from top bar — access only via port merchant or Percy intro
+	#var btn_shipyard := _make_btn("🔧 Shipyard", 90, func(): _show_shipyard(false))
+	#btn_shipyard.add_theme_color_override("font_color", Color(0.7, 0.9, 1.0, 1.0))
+	#hbox.add_child(btn_shipyard)
 
-	var btn_3d_layout := _make_btn("🚀 3D Layout", 90, _open_3d_layout)
+	var btn_3d_layout := _make_btn("🛠️ Designer", 90, _open_3d_layout)
 	btn_3d_layout.add_theme_color_override("font_color", Color(0.85, 0.75, 1.0, 1.0))
 	hbox.add_child(btn_3d_layout)
 
@@ -181,10 +189,6 @@ func _build_header(parent: Control) -> void:
 
 	_add_vsep(hbox)
 
-	btn_delete_mode = _make_btn("DEL", 45, _on_toggle_delete_mode)
-	btn_delete_mode.add_theme_font_size_override("font_size", 9)
-	btn_delete_mode.add_theme_color_override("font_color", Color(1.0, 0.55, 0.55, 1.0))
-	hbox.add_child(btn_delete_mode)
 
 	_add_spacer(hbox, 4)
 
@@ -220,14 +224,18 @@ const PERCY_PORTRAIT := "res://assets/pictures/crew/percy_commander.png"
 
 func _show_percy_hint(message: String, on_dismiss: Callable = Callable()) -> void:
 	## Quick Percy popup with a message and a dismiss button.
+	var vp_size := get_viewport().get_visible_rect().size
 	var overlay := Control.new()
-	overlay.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
-	overlay.z_index = 60
+	overlay.top_level = true
+	overlay.z_index = 100
+	overlay.position = Vector2.ZERO
+	overlay.size = vp_size
 	overlay.mouse_filter = Control.MOUSE_FILTER_STOP
 
 	var bg := ColorRect.new()
+	bg.position = Vector2.ZERO
+	bg.size = vp_size
 	bg.color = Color(0.02, 0.03, 0.06, 0.85)
-	bg.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	bg.mouse_filter = Control.MOUSE_FILTER_STOP
 	overlay.add_child(bg)
 
@@ -239,11 +247,9 @@ func _show_percy_hint(message: String, on_dismiss: Callable = Callable()) -> voi
 	style.set_corner_radius_all(8)
 	style.set_content_margin_all(16)
 	panel.add_theme_stylebox_override("panel", style)
-	panel.set_anchors_and_offsets_preset(Control.PRESET_CENTER)
-	panel.offset_left = -260
-	panel.offset_right = 260
-	panel.offset_top = -100
-	panel.offset_bottom = 100
+	var pw := 520.0
+	panel.position = Vector2((vp_size.x - pw) * 0.5, vp_size.y * 0.35)
+	panel.custom_minimum_size.x = pw
 	overlay.add_child(panel)
 
 	var vb := VBoxContainer.new()
@@ -342,6 +348,7 @@ func _show_shipyard(show_intro: bool, inventory: Array = []) -> void:
 
 		var speech_vb := VBoxContainer.new()
 		speech_vb.add_theme_constant_override("separation", 2)
+		speech_vb.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 		intro_hb.add_child(speech_vb)
 
 		var name_lbl := _make_label("Commander Percy", 13, CLR_ACCENT)
@@ -575,6 +582,7 @@ func _sy_buy_room(inventory: Array = []) -> void:
 	ship_node.name = uid
 	graph_edit.add_child(ship_node)
 	ship_node.setup(def, uid)
+	ship_node.sell_requested.connect(_on_sell_requested)
 
 	var cx: float = -graph_edit.scroll_offset.x + graph_edit.size.x * 0.5 - 80.0
 	var cy: float = -graph_edit.scroll_offset.y + graph_edit.size.y * 0.5 - 40.0
@@ -665,11 +673,7 @@ func _on_disconnection_request(from_node: StringName, from_port: int,
 
 
 # ── Node selection ────────────────────────────────────────────────────────────
-func _on_node_selected(node: Node) -> void:
-	if _delete_mode:
-		_delete_ship_node(node as ShipNode)
-		return
-
+func _on_node_selected(_node: Node) -> void:
 	pass  # Room detail now shown in Shipyard modal
 
 
@@ -680,18 +684,48 @@ func _on_delete_nodes_request(nodes: Array) -> void:
 			_delete_ship_node(n as ShipNode)
 
 
-func _delete_ship_node(ship_node: ShipNode) -> void:
+func _on_sell_requested(ship_node: ShipNode) -> void:
 	if ship_node == null:
 		return
+	var value := ship_node.sell_value()
+	var dlg := ConfirmationDialog.new()
+	dlg.title = "Sell Room"
+	dlg.dialog_text = "Sell \"%s\" for %d credits?" % [ship_node.title, value]
+	dlg.ok_button_text = "Sell"
+	dlg.confirmed.connect(func():
+		_sell_ship_node(ship_node, value)
+		dlg.queue_free())
+	dlg.canceled.connect(func(): dlg.queue_free())
+	add_child(dlg)
+	dlg.popup_centered()
+
+
+func _sell_ship_node(ship_node: ShipNode, value: int) -> void:
 	# Remove all connections to/from this node
 	var conns: Array = graph_edit.get_connection_list()
 	for conn in conns:
 		if conn.from_node == ship_node.name or conn.to_node == ship_node.name:
 			graph_edit.disconnect_node(conn.from_node, conn.from_port, conn.to_node, conn.to_port)
-	# 50% refund
-	var def := RoomData.find(ship_node.def_id)
-	if not def.is_empty():
-		credits += def.cost / 2
+	credits += value
+	_room_textures.erase(ship_node.node_uid)
+	_ship_3d_layout.erase(ship_node.node_uid)
+	# Unassign any crew from this room
+	for cm in _crew:
+		if cm.assigned_to == ship_node.node_uid:
+			cm.assigned_to = ""
+	_toast("Sold %s for %d cr" % [ship_node.title, value])
+	ship_node.queue_free()
+	_update_header()
+
+
+func _delete_ship_node(ship_node: ShipNode) -> void:
+	if ship_node == null:
+		return
+	var conns: Array = graph_edit.get_connection_list()
+	for conn in conns:
+		if conn.from_node == ship_node.name or conn.to_node == ship_node.name:
+			graph_edit.disconnect_node(conn.from_node, conn.from_port, conn.to_node, conn.to_port)
+	credits += ship_node.sell_value()
 	_room_textures.erase(ship_node.node_uid)
 	ship_node.queue_free()
 	_update_header()
@@ -871,12 +905,15 @@ func _show_power_breakdown() -> void:
 
 # ── Captain's Log ─────────────────────────────────────────────────────────────
 func _show_captains_log() -> void:
-	## Full-screen overlay showing the ship's voyage history.
+	## Full-screen overlay with tabs: Voyages + Star Chart.
+	if _log_overlay and is_instance_valid(_log_overlay):
+		_log_overlay.queue_free()
 	var overlay := ColorRect.new()
 	overlay.color = Color(0.0, 0.0, 0.0, 0.75)
 	overlay.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	overlay.z_index = 50
 	add_child(overlay)
+	_log_overlay = overlay
 
 	var panel := PanelContainer.new()
 	var style := StyleBoxFlat.new()
@@ -889,10 +926,10 @@ func _show_captains_log() -> void:
 	panel.z_index = 51
 	overlay.add_child(panel)
 	panel.set_anchors_and_offsets_preset(Control.PRESET_CENTER)
-	panel.offset_left   = -340
-	panel.offset_right  =  340
-	panel.offset_top    = -260
-	panel.offset_bottom =  260
+	panel.offset_left   = -400
+	panel.offset_right  =  400
+	panel.offset_top    = -310
+	panel.offset_bottom =  310
 
 	var vb := VBoxContainer.new()
 	vb.add_theme_constant_override("separation", 6)
@@ -904,14 +941,80 @@ func _show_captains_log() -> void:
 	title.add_theme_color_override("font_color", Color(0.75, 0.70, 0.95, 1.0))
 	vb.add_child(title)
 
-	var sep := HSeparator.new()
-	vb.add_child(sep)
+	# Tab bar
+	var tab_bar := HBoxContainer.new()
+	tab_bar.add_theme_constant_override("separation", 4)
+	vb.add_child(tab_bar)
 
-	# Scrollable log area
+	# Content area — children swapped when tabs clicked
+	var content := Control.new()
+	content.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	content.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	vb.add_child(content)
+
+	var btn_voyages := Button.new()
+	btn_voyages.text = "📜 Voyages"
+	btn_voyages.custom_minimum_size = Vector2(120, 28)
+	btn_voyages.add_theme_font_size_override("font_size", 11)
+	btn_voyages.pressed.connect(func() -> void: _log_show_voyages(content))
+	tab_bar.add_child(btn_voyages)
+
+	var btn_chart := Button.new()
+	btn_chart.text = "🗺 Star Chart"
+	btn_chart.custom_minimum_size = Vector2(120, 28)
+	btn_chart.add_theme_font_size_override("font_size", 11)
+	btn_chart.pressed.connect(func() -> void: _log_show_star_chart(content))
+	tab_bar.add_child(btn_chart)
+
+	# Legend (shows in tab bar, right-aligned)
+	var spacer := Control.new()
+	spacer.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	tab_bar.add_child(spacer)
+
+	var lbl_loc := Label.new()
+	lbl_loc.text = "📍 %s  |  %d/%d systems charted" % [
+		StarMapData.find_system(_current_system).get("name", "Unknown"),
+		_discovered_systems.size(), StarMapData.SYSTEMS.size()]
+	lbl_loc.add_theme_font_size_override("font_size", 10)
+	lbl_loc.add_theme_color_override("font_color", CLR_DIM)
+	tab_bar.add_child(lbl_loc)
+
+	# Default: show voyages tab
+	_log_show_voyages(content)
+
+	# Close button
+	var btn_close := Button.new()
+	btn_close.text = "Close"
+	btn_close.custom_minimum_size.x = 100
+	btn_close.add_theme_font_size_override("font_size", 12)
+	btn_close.pressed.connect(func() -> void:
+		overlay.queue_free()
+		_log_overlay = null)
+	vb.add_child(btn_close)
+
+
+func _show_captains_log_chart() -> void:
+	## Opens the captain's log directly on the Star Chart tab.
+	_show_captains_log()
+	# The log was just created — find the content area and switch to chart
+	if _log_overlay and is_instance_valid(_log_overlay):
+		# Content area is the 4th child of the VBox in the panel
+		var panel: PanelContainer = _log_overlay.get_child(1) as PanelContainer
+		if panel:
+			var vb: VBoxContainer = panel.get_child(0) as VBoxContainer
+			if vb and vb.get_child_count() > 2:
+				var content: Control = vb.get_child(2)
+				_log_show_star_chart(content)
+
+
+func _log_show_voyages(container: Control) -> void:
+	for c in container.get_children():
+		c.queue_free()
+
 	var scroll := ScrollContainer.new()
-	scroll.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	scroll.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
-	vb.add_child(scroll)
+	container.add_child(scroll)
 
 	var log_vb := VBoxContainer.new()
 	log_vb.size_flags_horizontal = Control.SIZE_EXPAND_FILL
@@ -925,18 +1028,320 @@ func _show_captains_log() -> void:
 		empty.add_theme_color_override("font_color", CLR_DIM)
 		log_vb.add_child(empty)
 	else:
-		# Show voyages in reverse order (most recent first)
 		for i in range(_ship_log.size() - 1, -1, -1):
 			var entry: Dictionary = _ship_log[i]
 			_build_log_entry(log_vb, entry)
 
-	# Close button
-	var btn_close := Button.new()
-	btn_close.text = "Close"
-	btn_close.custom_minimum_size.x = 100
-	btn_close.add_theme_font_size_override("font_size", 12)
-	btn_close.pressed.connect(func() -> void: overlay.queue_free())
-	vb.add_child(btn_close)
+
+# ── Star Chart tab ────────────────────────────────────────────────────────────
+const CHART_MARGIN := 50.0
+const CHART_TYPE_COLORS: Dictionary = {
+	"star":       Color(1.0, 0.9, 0.4, 1.0),
+	"planet":     Color(0.35, 0.75, 0.45, 1.0),
+	"station":    Color(0.5, 0.7, 1.0, 1.0),
+	"nebula":     Color(0.6, 0.3, 0.8, 1.0),
+	"asteroid":   Color(0.65, 0.55, 0.38, 1.0),
+	"black_hole": Color(0.5, 0.1, 0.6, 1.0),
+}
+
+func _log_show_star_chart(container: Control) -> void:
+	for c in container.get_children():
+		c.queue_free()
+
+	var chart := Control.new()
+	chart.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	chart.mouse_filter = Control.MOUSE_FILTER_STOP
+	container.add_child(chart)
+
+	# Tooltip label (hidden by default)
+	var tooltip := RichTextLabel.new()
+	tooltip.name = "ChartTooltip"
+	tooltip.bbcode_enabled = true
+	tooltip.fit_content = true
+	tooltip.scroll_active = false
+	tooltip.visible = false
+	tooltip.z_index = 55
+	tooltip.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	tooltip.custom_minimum_size = Vector2(230, 0)
+	var ts := StyleBoxFlat.new()
+	ts.bg_color = Color(0.04, 0.06, 0.12, 0.95)
+	ts.border_color = Color(0.45, 0.40, 0.70, 1.0)
+	ts.set_border_width_all(1)
+	ts.set_corner_radius_all(4)
+	ts.set_content_margin_all(8)
+	tooltip.add_theme_stylebox_override("normal", ts)
+	tooltip.add_theme_font_size_override("normal_font_size", 10)
+	chart.add_child(tooltip)
+
+	chart.draw.connect(func() -> void: _draw_star_chart(chart))
+	chart.gui_input.connect(func(event: InputEvent) -> void:
+		_chart_input(chart, event, tooltip))
+	chart.queue_redraw()
+
+
+func _chart_project(pos: Vector3, chart_size: Vector2) -> Vector2:
+	## Project 3D system position to 2D chart (X→x, Z→y, ignore Y).
+	var min_x := -85.0
+	var max_x := 115.0
+	var min_z := -65.0
+	var max_z := 90.0
+	var draw_w := chart_size.x - CHART_MARGIN * 2.0
+	var draw_h := chart_size.y - CHART_MARGIN * 2.0
+	var sx := CHART_MARGIN + (pos.x - min_x) / (max_x - min_x) * draw_w
+	var sy := CHART_MARGIN + (pos.z - min_z) / (max_z - min_z) * draw_h
+	return Vector2(sx, sy)
+
+
+func _draw_star_chart(chart: Control) -> void:
+	var sz := chart.size
+
+	# Background grid lines (subtle)
+	var grid_col := Color(0.12, 0.15, 0.22, 0.5)
+	for gx in range(0, int(sz.x), 60):
+		chart.draw_line(Vector2(gx, 0), Vector2(gx, sz.y), grid_col, 1.0)
+	for gy in range(0, int(sz.y), 60):
+		chart.draw_line(Vector2(0, gy), Vector2(sz.x, gy), grid_col, 1.0)
+
+	# Traveled routes
+	for route in _traveled_routes:
+		if route.size() < 2:
+			continue
+		var from_sys := StarMapData.find_system(route[0] as String)
+		var to_sys   := StarMapData.find_system(route[1] as String)
+		if from_sys.is_empty() or to_sys.is_empty():
+			continue
+		var p1 := _chart_project(from_sys.pos, sz)
+		var p2 := _chart_project(to_sys.pos, sz)
+		chart.draw_line(p1, p2, Color(0.30, 0.45, 0.65, 0.45), 1.5, true)
+
+	# Systems
+	var font := ThemeDB.fallback_font
+	for sys in StarMapData.SYSTEMS:
+		var screen_pos := _chart_project(sys.pos as Vector3, sz)
+		var is_disc: bool = _discovered_systems.has(sys.id as String)
+		var is_cur: bool  = (sys.id as String) == _current_system
+
+		if not is_disc:
+			# Undiscovered — tiny dim dot
+			chart.draw_circle(screen_pos, 2.0, Color(0.20, 0.22, 0.30, 0.35))
+			continue
+
+		var type_col: Color = CHART_TYPE_COLORS.get(sys.type as String, Color(0.7, 0.7, 0.7, 1.0))
+		var radius: float = 3.5 + (sys.size as float) * 0.5
+
+		# Current location — gold ring
+		if is_cur:
+			chart.draw_arc(screen_pos, radius + 5.0, 0.0, TAU, 32,
+				Color(1.0, 0.85, 0.30, 0.9), 2.0, true)
+
+		# Percy mission marker — orange ring
+		var percy_id := _get_percy_mission_at(sys.id as String)
+		if not percy_id.is_empty():
+			chart.draw_arc(screen_pos, radius + 8.0, 0.0, TAU, 32,
+				Color(0.95, 0.50, 0.15, 0.85), 2.0, true)
+			# "!" indicator
+			chart.draw_string(font, screen_pos + Vector2(radius + 8.0, -6.0),
+				"!", HORIZONTAL_ALIGNMENT_LEFT, -1, 12, Color(0.95, 0.50, 0.15, 1.0))
+
+		# System dot
+		chart.draw_circle(screen_pos, radius, type_col)
+		# Highlight edge
+		chart.draw_arc(screen_pos, radius, 0.0, TAU, 24,
+			type_col.lightened(0.3), 1.0, true)
+
+		# Label
+		chart.draw_string(font, screen_pos + Vector2(radius + 4.0, 4.0),
+			sys.name as String, HORIZONTAL_ALIGNMENT_LEFT, -1, 9,
+			Color(0.75, 0.78, 0.88, 0.9))
+
+
+func _chart_hit_test(mouse_pos: Vector2, chart_size: Vector2) -> Dictionary:
+	## Returns the discovered system under the mouse, or empty.
+	for sys in StarMapData.SYSTEMS:
+		if not _discovered_systems.has(sys.id as String):
+			continue
+		var sp := _chart_project(sys.pos as Vector3, chart_size)
+		if mouse_pos.distance_to(sp) <= 12.0:
+			return sys
+	return {}
+
+
+func _chart_input(chart: Control, event: InputEvent, tooltip: RichTextLabel) -> void:
+	if event is InputEventMouseMotion:
+		var pos: Vector2 = (event as InputEventMouseMotion).position
+		var hit := _chart_hit_test(pos, chart.size)
+		if hit.is_empty():
+			tooltip.visible = false
+			return
+		tooltip.visible = true
+		# Keep tooltip inside panel bounds
+		var tx: float = pos.x + 14.0
+		var ty: float = pos.y + 14.0
+		if tx + 240.0 > chart.size.x:
+			tx = pos.x - 250.0
+		if ty + 100.0 > chart.size.y:
+			ty = pos.y - 110.0
+		tooltip.position = Vector2(tx, ty)
+		var percy_id := _get_percy_mission_at(hit.id as String)
+		var percy_line := ""
+		if not percy_id.is_empty():
+			var pm := StarMapData.find_percy_mission(percy_id)
+			percy_line = "\n[color=#ff8833]⚠ Percy Mission: %s[/color]\n[color=#ff8833]%s[/color]" % [
+				pm.get("title", ""), pm.get("desc", "")]
+		var is_cur: String = "  [color=#ffd050]← YOU ARE HERE[/color]" if (hit.id as String) == _current_system else ""
+		tooltip.text = "[b]%s[/b]%s\nType: %s\n%s%s" % [
+			hit.name, is_cur, (hit.type as String).capitalize(), hit.desc, percy_line]
+
+	elif event is InputEventMouseButton:
+		var mb := event as InputEventMouseButton
+		if mb.pressed and mb.button_index == MOUSE_BUTTON_LEFT:
+			var hit := _chart_hit_test(mb.position, chart.size)
+			if hit.is_empty():
+				return
+			var percy_id := _get_percy_mission_at(hit.id as String)
+			if not percy_id.is_empty():
+				_show_percy_mission_dialog(percy_id)
+
+
+func _show_percy_mission_dialog(mission_id: String) -> void:
+	var m := StarMapData.find_percy_mission(mission_id)
+	if m.is_empty():
+		return
+	var loc_sys := StarMapData.find_system(m.location as String)
+	var loc_name: String = loc_sys.get("name", "Unknown") as String
+
+	# Close captain's log so the dialog is on top
+	if _log_overlay and is_instance_valid(_log_overlay):
+		_log_overlay.queue_free()
+		_log_overlay = null
+
+	var overlay := Control.new()
+	overlay.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	overlay.z_index = 70
+	overlay.mouse_filter = Control.MOUSE_FILTER_STOP
+	add_child(overlay)
+
+	var bg := ColorRect.new()
+	bg.color = Color(0.02, 0.03, 0.06, 0.85)
+	bg.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	overlay.add_child(bg)
+
+	var panel := PanelContainer.new()
+	var ps := StyleBoxFlat.new()
+	ps.bg_color = Color(0.06, 0.08, 0.14, 0.98)
+	ps.border_color = Color(0.90, 0.50, 0.15, 0.8)
+	ps.set_border_width_all(2)
+	ps.set_corner_radius_all(8)
+	ps.set_content_margin_all(16)
+	panel.add_theme_stylebox_override("panel", ps)
+	panel.set_anchors_and_offsets_preset(Control.PRESET_CENTER)
+	panel.offset_left = -290
+	panel.offset_right = 290
+	panel.offset_top = -160
+	panel.offset_bottom = 160
+	overlay.add_child(panel)
+
+	var vb := VBoxContainer.new()
+	vb.add_theme_constant_override("separation", 8)
+	panel.add_child(vb)
+
+	# Percy portrait + message
+	var hb := HBoxContainer.new()
+	hb.add_theme_constant_override("separation", 12)
+	vb.add_child(hb)
+
+	var portrait := TextureRect.new()
+	var tex := load(PERCY_PORTRAIT)
+	if tex:
+		portrait.texture = tex
+	portrait.expand_mode  = TextureRect.EXPAND_FIT_WIDTH_PROPORTIONAL
+	portrait.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+	portrait.custom_minimum_size = Vector2(64, 64)
+	hb.add_child(portrait)
+
+	var speech_vb := VBoxContainer.new()
+	speech_vb.add_theme_constant_override("separation", 4)
+	speech_vb.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	hb.add_child(speech_vb)
+
+	var lbl_name := Label.new()
+	lbl_name.text = "Commander Percy"
+	lbl_name.add_theme_font_size_override("font_size", 12)
+	lbl_name.add_theme_color_override("font_color", Color(0.95, 0.50, 0.15, 1.0))
+	speech_vb.add_child(lbl_name)
+
+	var speech := RichTextLabel.new()
+	speech.bbcode_enabled = true
+	speech.fit_content = true
+	speech.scroll_active = false
+	speech.text = m.percy_msg as String
+	speech.add_theme_font_size_override("normal_font_size", 11)
+	speech.add_theme_color_override("default_color", Color(0.75, 0.80, 0.90, 1.0))
+	speech_vb.add_child(speech)
+
+	# Mission details
+	var details := Label.new()
+	details.text = "「 %s 」  —  %s  |  ~%d days  |  Reward: %d cr" % [
+		m.title, loc_name, m.days as int, m.reward as int]
+	details.add_theme_font_size_override("font_size", 11)
+	details.add_theme_color_override("font_color", Color(0.90, 0.85, 0.55, 1.0))
+	details.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	vb.add_child(details)
+
+	var desc := Label.new()
+	desc.text = m.desc as String
+	desc.add_theme_font_size_override("font_size", 10)
+	desc.add_theme_color_override("font_color", CLR_DIM)
+	desc.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	desc.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	vb.add_child(desc)
+
+	# Accept / Decline
+	var btn_row := HBoxContainer.new()
+	btn_row.add_theme_constant_override("separation", 10)
+	btn_row.alignment = BoxContainer.ALIGNMENT_CENTER
+	vb.add_child(btn_row)
+
+	var btn_accept := Button.new()
+	btn_accept.text = "Accept Mission"
+	btn_accept.custom_minimum_size = Vector2(140, 32)
+	btn_accept.add_theme_font_size_override("font_size", 12)
+	btn_accept.add_theme_color_override("font_color", Color(0.40, 0.95, 0.55, 1.0))
+	btn_accept.pressed.connect(func() -> void:
+		_active_percy_mission = mission_id
+		overlay.queue_free()
+		_launch_percy_mission())
+	btn_row.add_child(btn_accept)
+
+	var btn_decline := Button.new()
+	btn_decline.text = "Not Now"
+	btn_decline.custom_minimum_size = Vector2(100, 32)
+	btn_decline.add_theme_font_size_override("font_size", 11)
+	btn_decline.add_theme_color_override("font_color", Color(0.65, 0.55, 0.55, 1.0))
+	btn_decline.pressed.connect(func() -> void:
+		overlay.queue_free()
+		_show_captains_log_chart())
+	btn_row.add_child(btn_decline)
+
+
+func _launch_percy_mission() -> void:
+	## Builds a synthetic job dict and launches the Percy mission flight.
+	var m := StarMapData.find_percy_mission(_active_percy_mission)
+	if m.is_empty():
+		return
+	var loc_sys := StarMapData.find_system(m.location as String)
+	var job := {
+		"destination_id":   m.location as String,
+		"destination_name": loc_sys.get("name", "Unknown") as String,
+		"days":             m.days as int,
+		"pay_per_day":      (m.reward as int) / maxi(1, m.days as int),
+		"total_pay":        m.reward as int,
+		"job_type":         "Percy Mission",
+		"job_desc":         m.desc as String,
+		"harsh":            StarMapData.is_harsh(m.location as String),
+		"is_percy":         true,
+	}
+	_launch_flight(job, 0)
 
 
 func _build_log_entry(parent: Control, entry: Dictionary) -> void:
@@ -1034,12 +1439,6 @@ func _build_log_entry(parent: Control, entry: Dictionary) -> void:
 
 
 # ── Mode buttons ──────────────────────────────────────────────────────────────
-func _on_toggle_delete_mode() -> void:
-	_delete_mode = not _delete_mode
-	btn_delete_mode.text = "DEL %s" % ("ON" if _delete_mode else "")
-	btn_delete_mode.add_theme_color_override("font_color",
-		Color(1.0, 0.3, 0.3, 1.0) if _delete_mode else Color(1.0, 0.55, 0.55, 1.0))
-
 
 func _on_toggle_hull_edit() -> void:
 	_hull_edit_mode = not _hull_edit_mode
@@ -1109,6 +1508,10 @@ func _open_3d_layout() -> void:
 	_layout_editor = editor
 	editor.layout_saved.connect(func(layout: Dictionary) -> void:
 		_ship_3d_layout = layout
+		for uid: String in layout:
+			var tex: String = layout[uid].get("tex", "")
+			if not tex.is_empty():
+				_room_textures[uid] = tex
 		_layout_editor = null
 		_toast("3D layout saved!"))
 	editor.layout_cancelled.connect(func() -> void:
@@ -1131,10 +1534,77 @@ func _on_new_ship() -> void:
 	_jobs_completed = 0
 	_ship_log.clear()
 	_ship_3d_layout.clear()
+	_discovered_systems.clear()
+	_traveled_routes.clear()
+	_percy_missions_completed.clear()
+	_active_percy_mission = ""
+	_init_discovery()
 	txt_ship_name.text = ship_name
 	_update_header()
 	# Open the shipyard with Percy's intro for the new captain
 	_show_shipyard(true)
+
+
+func _init_discovery() -> void:
+	## Seeds the starting discovered systems if empty (new ship or old save migration).
+	if _discovered_systems.is_empty():
+		_discovered_systems = ["sol", "proxima", "alpha_cen", "station_k"]
+
+
+func _discover_nearby(system_id: String) -> Array:
+	## Discovers the given system and all systems within 15 units.
+	## Returns array of newly discovered system names (for toast).
+	var new_finds: Array = []
+	var sys := StarMapData.find_system(system_id)
+	if sys.is_empty():
+		return new_finds
+	if not _discovered_systems.has(system_id):
+		_discovered_systems.append(system_id)
+		new_finds.append(sys.name as String)
+	var pos: Vector3 = sys.pos
+	for s in StarMapData.SYSTEMS:
+		if _discovered_systems.has(s.id):
+			continue
+		if pos.distance_to(s.pos as Vector3) <= 15.0:
+			_discovered_systems.append(s.id as String)
+			new_finds.append(s.name as String)
+	return new_finds
+
+
+func _get_available_percy_missions() -> Array:
+	## Returns Percy missions whose triggers are met and not completed/active.
+	var available: Array = []
+	for m in StarMapData.PERCY_MISSIONS:
+		var mid: String = m.id as String
+		if _percy_missions_completed.has(mid):
+			continue
+		if _active_percy_mission == mid:
+			continue
+		# Sequential: previous mission must be completed
+		var idx: int = StarMapData.PERCY_MISSIONS.find(m)
+		if idx > 0:
+			var prev: Dictionary = StarMapData.PERCY_MISSIONS[idx - 1]
+			if not _percy_missions_completed.has(prev.id as String):
+				continue
+		# Check trigger
+		var trigger: Dictionary = m.get("trigger", {})
+		var ttype: String = trigger.get("type", "") as String
+		if ttype == "jobs_completed":
+			if _jobs_completed < (trigger.get("value", 999) as int):
+				continue
+		elif ttype == "system_discovered":
+			if not _discovered_systems.has(trigger.get("value", "") as String):
+				continue
+		available.append(m)
+	return available
+
+
+func _get_percy_mission_at(system_id: String) -> String:
+	## Returns the percy mission ID available at this system, or "".
+	for m in _get_available_percy_missions():
+		if (m.location as String) == system_id:
+			return m.id as String
+	return ""
 
 
 func _on_save() -> void:
@@ -1201,6 +1671,10 @@ func _save_to_file(path: String) -> void:
 		"jobs_completed": _jobs_completed,
 		"ship_log":       _ship_log,
 		"ship_3d_layout": _ship_3d_layout,
+		"discovered_systems":       _discovered_systems,
+		"traveled_routes":          _traveled_routes,
+		"percy_missions_completed": _percy_missions_completed,
+		"active_percy_mission":     _active_percy_mission,
 		"nodes":          nodes_data,
 		"connections":    conn_data,
 	}
@@ -1243,6 +1717,11 @@ func _load_from_file(path: String) -> void:
 	_jobs_completed = data.get("jobs_completed", 0)
 	_ship_log       = data.get("ship_log",       [])
 	_ship_3d_layout = data.get("ship_3d_layout", {})
+	_discovered_systems       = data.get("discovered_systems", [])
+	_traveled_routes          = data.get("traveled_routes", [])
+	_percy_missions_completed = data.get("percy_missions_completed", [])
+	_active_percy_mission     = (data.get("active_percy_mission", "") as String)
+	_init_discovery()   # migration for old saves without discovery data
 
 	# Sanitize crew status — clear any in-progress states from a mid-session save
 	for cm in _crew:
@@ -1267,6 +1746,7 @@ func _load_from_file(path: String) -> void:
 		ship_node.name = nd.name
 		graph_edit.add_child(ship_node)
 		ship_node.setup(def, nd.uid)
+		ship_node.sell_requested.connect(_on_sell_requested)
 		ship_node.position_offset = Vector2(nd.pos_x, nd.pos_y)
 		ship_node.current_durability = nd.durability
 		# Hull position migration: new key → old offset key → fallback to GraphEdit pos
@@ -1309,7 +1789,7 @@ func _on_find_job() -> void:
 	if _job_board_popup and is_instance_valid(_job_board_popup):
 		return   # already open
 
-	var listings: Array = StarMapData.generate_job_listings(_current_system)
+	var listings: Array = StarMapData.generate_job_listings(_current_system, _discovered_systems)
 	if listings.is_empty():
 		_toast("No jobs available right now.")
 		return
@@ -1349,6 +1829,14 @@ func _show_job_board(listings: Array) -> void:
 	vb.add_child(subtitle)
 
 	vb.add_child(HSeparator.new())
+
+	# Percy mission at this location — special entry at top
+	if not _active_percy_mission.is_empty():
+		var pm := StarMapData.find_percy_mission(_active_percy_mission)
+		if not pm.is_empty() and (pm.location as String) == _current_system:
+			var percy_row := _build_percy_job_row(pm, popup)
+			vb.add_child(percy_row)
+			vb.add_child(HSeparator.new())
 
 	# Job listings
 	for job in listings:
@@ -1444,7 +1932,95 @@ func _build_job_row(job: Dictionary, popup: PanelContainer) -> PanelContainer:
 	return row_panel
 
 
+func _build_percy_job_row(pm: Dictionary, popup: PanelContainer) -> PanelContainer:
+	var row_panel := PanelContainer.new()
+	var row_style := StyleBoxFlat.new()
+	row_style.bg_color = Color(0.12, 0.08, 0.04, 1.0)
+	row_style.border_color = Color(0.90, 0.50, 0.15, 0.7)
+	row_style.set_border_width_all(2)
+	row_style.set_corner_radius_all(4)
+	row_style.set_content_margin_all(10)
+	row_panel.add_theme_stylebox_override("panel", row_style)
+
+	var hb := HBoxContainer.new()
+	hb.add_theme_constant_override("separation", 12)
+	row_panel.add_child(hb)
+
+	var info_vb := VBoxContainer.new()
+	info_vb.add_theme_constant_override("separation", 2)
+	info_vb.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	hb.add_child(info_vb)
+
+	var lbl_title := Label.new()
+	lbl_title.text = "⚠ PERCY MISSION — %s" % (pm.title as String)
+	lbl_title.add_theme_font_size_override("font_size", 12)
+	lbl_title.add_theme_color_override("font_color", Color(0.95, 0.55, 0.20, 1.0))
+	info_vb.add_child(lbl_title)
+
+	var lbl_desc := Label.new()
+	lbl_desc.text = pm.desc as String
+	lbl_desc.add_theme_font_size_override("font_size", 10)
+	lbl_desc.add_theme_color_override("font_color", Color(0.70, 0.65, 0.55, 1.0))
+	lbl_desc.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	info_vb.add_child(lbl_desc)
+
+	var lbl_stats := Label.new()
+	lbl_stats.text = "~%d days  |  Reward: %d cr" % [pm.days as int, pm.reward as int]
+	lbl_stats.add_theme_font_size_override("font_size", 10)
+	lbl_stats.add_theme_color_override("font_color", Color(0.90, 0.85, 0.55, 1.0))
+	info_vb.add_child(lbl_stats)
+
+	var btn := Button.new()
+	btn.text = "Launch"
+	btn.custom_minimum_size = Vector2(70, 32)
+	btn.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+	btn.add_theme_font_size_override("font_size", 11)
+	btn.add_theme_color_override("font_color", Color(0.95, 0.55, 0.20, 1.0))
+	btn.pressed.connect(func() -> void:
+		popup.queue_free()
+		_job_board_popup = null
+		_launch_percy_mission())
+	hb.add_child(btn)
+
+	return row_panel
+
+
 func _accept_job(job: Dictionary) -> void:
+	# Show cargo puzzle if this is a cargo-type job and player has cargo holds
+	if CARGO_JOB_TYPES.has(job.job_type) and _count_cargo_holds() > 0:
+		if _cargo_puzzle == null:
+			_pending_job = job
+			_show_cargo_puzzle(job)
+			return
+
+	_launch_flight(job, 0)
+
+
+func _count_cargo_holds() -> int:
+	var count: int = 0
+	for sn in _all_nodes():
+		var node := sn as ShipNode
+		if node and node.def_id.contains("cargo"):
+			count += 1
+	return count
+
+
+func _show_cargo_puzzle(job: Dictionary) -> void:
+	var cargo_count: int = _count_cargo_holds()
+	var puzzle := CargoPuzzle.new()
+	puzzle.setup(cargo_count, job.pay_per_day, job.total_pay, job.job_type)
+	puzzle.puzzle_done.connect(func(bonus: int) -> void:
+		puzzle.queue_free()
+		_cargo_puzzle = null
+		if bonus > 0:
+			_toast("📦 Cargo loaded efficiently! +%d cr bonus" % bonus)
+		_launch_flight(_pending_job, bonus)
+		_pending_job = {})
+	add_child(puzzle)
+	_cargo_puzzle = puzzle
+
+
+func _launch_flight(job: Dictionary, cargo_bonus: int) -> void:
 	var nodes := _all_nodes()
 	var days: int  = job.days
 	var pwr: int   = _total_power()
@@ -1465,6 +2041,9 @@ func _accept_job(job: Dictionary) -> void:
 		"crew":            _crew,
 		"wages":           wages,
 		"ship_3d_layout":  _ship_3d_layout,
+		"cargo_bonus":     cargo_bonus,
+		"discovered":      _discovered_systems,
+		"is_percy":        job.get("is_percy", false),
 	})
 	add_child(star_map)
 	star_map.job_finished.connect(_on_job_finished)
@@ -1537,6 +2116,56 @@ func _on_job_finished(result: Dictionary) -> void:
 		"lines":   result.get("log_lines", []),
 		"promotions": promotions,
 	})
+
+	# ── Discovery expansion ──
+	var route := [prev_system, _current_system]
+	if not _traveled_routes.has(route):
+		_traveled_routes.append(route)
+	var newly_found := _discover_nearby(_current_system)
+	if not newly_found.is_empty():
+		_toast("🔭 Sensors charted %d new system(s): %s" % [
+			newly_found.size(), ", ".join(newly_found)])
+
+	# ── Percy mission completion ──
+	var is_percy: bool = result.get("is_percy", false)
+	if is_percy and _active_percy_mission != "":
+		var pm := StarMapData.find_percy_mission(_active_percy_mission)
+		_percy_missions_completed.append(_active_percy_mission)
+		_active_percy_mission = ""
+		var bonus_sys: Array = pm.get("on_complete_discover", [])
+		for sid in bonus_sys:
+			if not _discovered_systems.has(sid as String):
+				_discovered_systems.append(sid)
+		if not bonus_sys.is_empty():
+			var names: Array = []
+			for sid in bonus_sys:
+				var s := StarMapData.find_system(sid as String)
+				if not s.is_empty():
+					names.append(s.name as String)
+			_toast("Mission complete! New systems charted: %s" % ", ".join(names))
+		var _result := result
+		var _wages := wages
+		_show_percy_hint(
+			"\"Outstanding work, Captain. The data we recovered will " +
+			"change everything. Stand by — I'll have new orders soon.\"",
+			func(): _open_port_after_job(_result, _wages))
+		return
+
+	# ── Percy mission nudge — notify if a new mission became available ──
+	if not is_percy:
+		var avail := _get_available_percy_missions()
+		if not avail.is_empty():
+			var next_m: Dictionary = avail[0]
+			var _result := result
+			var _wages := wages
+			_show_percy_hint(
+				"\"Captain, I've got something for you. Check the " +
+				"[color=#ffd050]Star Chart[/color] in your log — " +
+				"system [color=#4fdf8c]%s[/color].\"" % (
+					StarMapData.find_system(
+						next_m.location as String).get("name", "unknown")),
+				func(): _open_port_after_job(_result, _wages))
+			return
 
 	# Percy's crew hint after the very first job — defer port until dismissed
 	if _jobs_completed == 1:

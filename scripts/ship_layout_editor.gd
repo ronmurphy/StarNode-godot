@@ -58,6 +58,11 @@ var _vpc:          SubViewportContainer
 var _ship_rot_slider: HSlider
 var _ship_rot_val:    Label
 
+# ── Texture panel ─────────────────────────────────────────────────────────────
+var _tex_paths:    Array  = []   # res:// paths to all texture pngs
+var _tex_buttons:  Array  = []   # Array of {btn, path}
+var _lbl_tex_name: Label  = null # readout of currently highlighted tex
+
 # ── Camera orbit state ───────────────────────────────────────────────────────
 var _cam_distance: float = 12.0
 var _cam_yaw:      float = 0.0
@@ -101,6 +106,7 @@ func _ready() -> void:
 
 	_build_left_panel(root_hbox)
 	_build_3d_viewport(root_hbox)
+	_build_texture_panel(root_hbox)
 
 	# Bottom bar (part of flow, not overlay)
 	_build_bottom_bar(root_vbox)
@@ -389,11 +395,17 @@ func _build_ship_preview() -> void:
 		var cost:     int    = def.get("cost", 100)
 		var box_sz := ShipBuilder3D.room_box_size(rtype)
 
-		# Resolve texture: per-room first, then type fallback
+		# Resolve texture: layout override > per-room purchase > type fallback
 		var tex: Texture2D = null
-		var tex_path: String = room_textures.get(sn.node_uid, "")
-		if not tex_path.is_empty() and ResourceLoader.exists(tex_path):
-			tex = load(tex_path) as Texture2D
+		var layout_tex: String = ""
+		if _layout.has(sn.node_uid):
+			layout_tex = (_layout[sn.node_uid] as Dictionary).get("tex", "")
+		if not layout_tex.is_empty() and ResourceLoader.exists(layout_tex):
+			tex = load(layout_tex) as Texture2D
+		if tex == null:
+			var tex_path: String = room_textures.get(sn.node_uid, "")
+			if not tex_path.is_empty() and ResourceLoader.exists(tex_path):
+				tex = load(tex_path) as Texture2D
 		if tex == null:
 			tex = type_textures.get(rtype, null) as Texture2D
 		var mat := ShipBuilder3D.room_material(rtype, tex)
@@ -401,6 +413,7 @@ func _build_ship_preview() -> void:
 		var container := Node3D.new()
 		container.position = base_pos
 		container.set_meta("base_pos", base_pos)
+		container.set_meta("base_mat", mat)
 		_ship_root.add_child(container)
 
 		ShipBuilder3D.build_room_shape(container, rtype, universe, cost, mat, box_sz)
@@ -461,6 +474,7 @@ func _select_room(idx: int) -> void:
 		_lbl_selected.text = "No room selected"
 		_room_list.deselect_all()
 		_zero_sliders()
+		_refresh_tex_panel("")
 		return
 
 	_room_list.select(idx)
@@ -481,6 +495,15 @@ func _select_room(idx: int) -> void:
 	container.add_child(_highlight_mesh)
 
 	_update_sliders_from_layout(_room_uids[idx])
+
+	# Refresh texture panel: layout override → purchase texture → ""
+	var sel_uid: String = _room_uids[idx]
+	var cur_tex: String = ""
+	if _layout.has(sel_uid):
+		cur_tex = (_layout[sel_uid] as Dictionary).get("tex", "")
+	if cur_tex.is_empty():
+		cur_tex = (_params.get("room_textures", {}) as Dictionary).get(sel_uid, "")
+	_refresh_tex_panel(cur_tex)
 
 
 func _try_select_room(screen_pos: Vector2) -> void:
@@ -667,14 +690,16 @@ func _on_cancel() -> void:
 
 
 func _on_save_layout() -> void:
-	# Clean up: remove entries at default values
+	# Clean up: remove entries at default values (keep if tex override or non-default transform)
 	var clean: Dictionary = {}
 	for uid in _layout:
 		var e: Dictionary = _layout[uid]
-		if absf(e.get("ox", 0.0)) > 0.01 or absf(e.get("oy", 0.0)) > 0.01 \
+		var has_transform := absf(e.get("ox", 0.0)) > 0.01 or absf(e.get("oy", 0.0)) > 0.01 \
 				or absf(e.get("oz", 0.0)) > 0.01 \
 				or absf(e.get("rot_y", 0.0)) > 0.5 \
-				or absf(e.get("scale", 1.0) - 1.0) > 0.01:
+				or absf(e.get("scale", 1.0) - 1.0) > 0.01
+		var has_tex: bool = not (e.get("tex", "") as String).is_empty()
+		if has_transform or has_tex:
 			clean[uid] = e
 	layout_saved.emit(clean)
 	queue_free()
@@ -696,3 +721,143 @@ func _add_sp(parent: Control, px: int) -> void:
 	var sp := Control.new()
 	sp.custom_minimum_size.x = px
 	parent.add_child(sp)
+
+
+# ── Texture Panel ─────────────────────────────────────────────────────────────
+
+func _build_texture_panel(parent: Control) -> void:
+	# Scan res://assets/pictures/textures/ for all .png files
+	var dir := DirAccess.open("res://assets/pictures/textures/")
+	if dir:
+		dir.list_dir_begin()
+		var fname := dir.get_next()
+		while fname != "":
+			if not dir.current_is_dir() and fname.ends_with(".png"):
+				_tex_paths.append("res://assets/pictures/textures/" + fname)
+			fname = dir.get_next()
+		dir.list_dir_end()
+		_tex_paths.sort()
+
+	var panel := PanelContainer.new()
+	panel.custom_minimum_size.x = 196
+	panel.size_flags_horizontal = Control.SIZE_SHRINK_END
+	panel.size_flags_vertical   = Control.SIZE_EXPAND_FILL
+	var style := StyleBoxFlat.new()
+	style.bg_color = CLR_PANEL
+	style.border_color = CLR_ACCENT.darkened(0.3)
+	style.border_width_left = 2
+	style.set_content_margin_all(10)
+	panel.add_theme_stylebox_override("panel", style)
+	parent.add_child(panel)
+
+	var vb := VBoxContainer.new()
+	vb.add_theme_constant_override("separation", 6)
+	panel.add_child(vb)
+
+	var title := Label.new()
+	title.text = "TEXTURES"
+	title.add_theme_font_size_override("font_size", 13)
+	title.add_theme_color_override("font_color", CLR_ACCENT)
+	title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	vb.add_child(title)
+
+	_lbl_tex_name = Label.new()
+	_lbl_tex_name.text = "—"
+	_lbl_tex_name.add_theme_font_size_override("font_size", 9)
+	_lbl_tex_name.add_theme_color_override("font_color", CLR_DIM)
+	_lbl_tex_name.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	_lbl_tex_name.clip_text = true
+	vb.add_child(_lbl_tex_name)
+
+	var sep := HSeparator.new()
+	sep.add_theme_color_override("color", CLR_ACCENT.darkened(0.4))
+	vb.add_child(sep)
+
+	var scroll := ScrollContainer.new()
+	scroll.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
+	vb.add_child(scroll)
+
+	var grid := GridContainer.new()
+	grid.columns = 3
+	grid.add_theme_constant_override("h_separation", 4)
+	grid.add_theme_constant_override("v_separation", 4)
+	scroll.add_child(grid)
+
+	for path: String in _tex_paths:
+		var tex: Texture2D = null
+		if ResourceLoader.exists(path):
+			tex = load(path) as Texture2D
+
+		var btn := Button.new()
+		btn.custom_minimum_size = Vector2(54, 54)
+		btn.icon               = tex
+		btn.expand_icon        = true
+		btn.clip_text          = true
+		btn.tooltip_text       = path.get_file().get_basename().trim_prefix("tex_").replace("_", " ")
+		btn.pressed.connect(func(): _on_texture_thumb_clicked(path))
+		grid.add_child(btn)
+		_tex_buttons.append({"btn": btn, "path": path})
+
+	var sep2 := HSeparator.new()
+	sep2.add_theme_color_override("color", CLR_ACCENT.darkened(0.4))
+	vb.add_child(sep2)
+
+	var btn_clear := _make_btn("✕ Clear", -1, _on_clear_texture)
+	btn_clear.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	btn_clear.add_theme_color_override("font_color", Color(1.0, 0.6, 0.6))
+	vb.add_child(btn_clear)
+
+
+func _on_texture_thumb_clicked(path: String) -> void:
+	if _selected_idx < 0:
+		return
+	var uid: String = _room_uids[_selected_idx]
+	if not _layout.has(uid):
+		_layout[uid] = {"ox": 0.0, "oy": 0.0, "oz": 0.0, "rot_y": 0.0, "scale": 1.0}
+	_layout[uid]["tex"] = path
+	_apply_tex_to_container(_room_containers[_selected_idx], path)
+	_refresh_tex_panel(path)
+
+
+func _on_clear_texture() -> void:
+	if _selected_idx < 0:
+		return
+	var uid: String = _room_uids[_selected_idx]
+	if _layout.has(uid):
+		_layout[uid].erase("tex")
+	# Revert to purchase texture or type fallback
+	var fallback: String = (_params.get("room_textures", {}) as Dictionary).get(uid, "")
+	_apply_tex_to_container(_room_containers[_selected_idx], fallback)
+	_refresh_tex_panel("")
+
+
+func _apply_tex_to_container(container: Node3D, tex_path: String) -> void:
+	var mat: StandardMaterial3D = container.get_meta("base_mat", null)
+	if mat == null:
+		return
+	if not tex_path.is_empty() and ResourceLoader.exists(tex_path):
+		mat.albedo_texture = load(tex_path) as Texture2D
+	else:
+		mat.albedo_texture = null
+
+
+func _refresh_tex_panel(active_path: String) -> void:
+	if _lbl_tex_name != null:
+		if active_path.is_empty():
+			_lbl_tex_name.text = "—"
+		else:
+			_lbl_tex_name.text = active_path.get_file().get_basename().trim_prefix("tex_").replace("_", " ")
+
+	var sel_style := StyleBoxFlat.new()
+	sel_style.bg_color    = CLR_ACCENT.darkened(0.2)
+	sel_style.border_color = CLR_GOLD
+	sel_style.set_border_width_all(2)
+
+	for entry: Dictionary in _tex_buttons:
+		var btn: Button = entry["btn"]
+		var path: String = entry["path"]
+		if path == active_path:
+			btn.add_theme_stylebox_override("normal", sel_style)
+		else:
+			btn.remove_theme_stylebox_override("normal")
