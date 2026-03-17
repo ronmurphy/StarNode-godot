@@ -75,6 +75,17 @@ const ROOMS: Array = [
 	{ "id":"me_medbay",        "name":"Medical Bay",         "universe":"Mass Effect", "type":"Utility",  "cost":240,  "power":-25,  "durability":65,  "desc":"Alliance-spec trauma center and medi-gel dispensary." },
 	{ "id":"me_lab",           "name":"Research Lab",        "universe":"Mass Effect", "type":"Utility",  "cost":320,  "power":-35,  "durability":60,  "desc":"Weapons and tech upgrade research facility." },
 	{ "id":"me_cargo",         "name":"Cargo Hold",          "universe":"Mass Effect", "type":"Utility",  "cost":140,  "power":-10,  "durability":70,  "desc":"Pressurized cargo and equipment storage." },
+	# ── Star Mercenaries ───────────────────────────────────────────────────
+	{ "id":"merc_salvage_reactor",  "name":"Salvage Reactor",      "universe":"Mercs", "type":"Power",    "cost":350,  "power":220,  "durability":75,  "desc":"Frankensteined power plant bolted from scrapyard parts. Ugly but reliable." },
+	{ "id":"merc_scrapyard_gen",    "name":"Scrapyard Generator",  "universe":"Mercs", "type":"Power",    "cost":900,  "power":520,  "durability":85,  "desc":"Massive jury-rigged generator. Three different reactor types welded into one." },
+	{ "id":"merc_hotrod_drive",     "name":"Hotrod Drive",         "universe":"Mercs", "type":"Engines",  "cost":600,  "power":-180, "durability":80,  "desc":"Oversized thruster bolted to an undersized frame. Fast and terrifying." },
+	{ "id":"merc_afterburner",      "name":"Afterburner Array",    "universe":"Mercs", "type":"Engines",  "cost":1100, "power":-320, "durability":70,  "desc":"Military-grade afterburners stripped from a decommissioned frigate." },
+	{ "id":"merc_smuggler_cockpit", "name":"Smuggler's Cockpit",   "universe":"Mercs", "type":"Command",  "cost":400,  "power":-25,  "durability":70,  "desc":"Cramped asymmetric cockpit with a bubble canopy and too many screens." },
+	{ "id":"merc_command_deck",     "name":"Merc Command Deck",    "universe":"Mercs", "type":"Command",  "cost":750,  "power":-40,  "durability":78,  "desc":"Battle-scarred command center with mismatched consoles from three different ships." },
+	{ "id":"merc_jury_turret",      "name":"Jury-Rigged Turret",   "universe":"Mercs", "type":"Tactical", "cost":300,  "power":-90,  "durability":60,  "desc":"Improvised weapon mount. Bolted on crooked but hits hard enough." },
+	{ "id":"merc_railgun_salvage",  "name":"Railgun Salvage Mount","universe":"Mercs", "type":"Tactical", "cost":800,  "power":-220, "durability":68,  "desc":"Salvaged military railgun. Half the housing is missing but the barrel still works." },
+	{ "id":"merc_bounty_suite",     "name":"Bounty Hunter Suite",  "universe":"Mercs", "type":"Utility",  "cost":280,  "power":-20,  "durability":72,  "desc":"Holding cells, weapon lockers, and a reinforced interrogation room." },
+	{ "id":"merc_hidden_cargo",     "name":"Hidden Cargo Bay",     "universe":"Mercs", "type":"Utility",  "cost":200,  "power":-10,  "durability":65,  "desc":"Shielded smuggling compartment. Invisible to standard cargo scans." },
 	# ── Universal ──────────────────────────────────────────────────────────
 	{ "id":"uni_junction",     "name":"Junction Node",       "universe":"Universal",  "type":"Utility",  "cost":50,   "power":0,    "durability":100, "desc":"Power/data routing junction." },
 	{ "id":"uni_conduit",      "name":"Power Conduit",       "universe":"Universal",  "type":"Power",    "cost":80,   "power":0,    "durability":100, "desc":"Power distribution conduit." },
@@ -84,7 +95,7 @@ const ROOMS: Array = [
 	{ "id":"uni_crew",         "name":"Crew Quarters",       "universe":"Universal",  "type":"Utility",  "cost":120,  "power":-15,  "durability":70,  "desc":"Standard crew living quarters." },
 ]
 
-const UNIVERSES: Array = ["All", "Star Trek", "Star Wars", "Babylon 5", "Dune", "BSG", "The Expanse", "Mass Effect", "Universal"]
+const UNIVERSES: Array = ["All", "Star Trek", "Star Wars", "Babylon 5", "Dune", "BSG", "The Expanse", "Mass Effect", "Mercs", "Universal"]
 
 const TYPES: Array = ["All Types", "Power", "Engines", "Command", "Tactical", "Utility"]
 

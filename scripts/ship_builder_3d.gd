@@ -66,6 +66,7 @@ static func build_room_shape(container: Node3D, rtype: String, universe: String,
 		"Star Wars": _wars(container, rtype, base_mat, box_sz)
 		"Babylon 5": _b5(container,   rtype, base_mat, box_sz)
 		"Dune":      _dune(container,  rtype, base_mat, box_sz)
+		"Mercs":     _mercs(container, rtype, base_mat, box_sz)
 		_:           _generic(container, rtype, cost, base_mat, box_sz)
 
 
@@ -133,67 +134,156 @@ static func _wars(container: Node3D, rtype: String,
 		mat: StandardMaterial3D, sz: Vector3) -> void:
 	match rtype:
 		"Command":
-			# Imperial bridge tower — terraced trapezoid with viewport band + shield domes
-			# Base tier: wide hull foundation
+			# ── Imperial bridge tower — terraced trapezoid, viewport band, shield domes ──
+			# Wide hull base slab beneath the tower
+			add_mi(container, box_mesh(Vector3(sz.x * 1.10, sz.y * 0.14, sz.z * 0.90)),
+				mat, Vector3(0.0, -sz.y * 0.42, 0.0))
+			# Surface trench on base slab
+			var trench_mat := StandardMaterial3D.new()
+			trench_mat.albedo_color = mat.albedo_color.darkened(0.35)
+			trench_mat.metallic = 0.6;  trench_mat.roughness = 0.35
+			if mat.albedo_texture != null:
+				trench_mat.albedo_texture = mat.albedo_texture
+			add_mi(container, box_mesh(Vector3(sz.x * 0.85, sz.y * 0.06, sz.z * 0.12)),
+				trench_mat, Vector3(0.0, -sz.y * 0.36, -sz.z * 0.20))
+			# Base tier: wide foundation
 			var base := CylinderMesh.new()
 			base.top_radius = sz.x * 0.42;  base.bottom_radius = sz.x * 0.56
-			base.height = sz.y * 0.35;  base.radial_segments = 4
-			var bmi := add_mi(container, base, mat, Vector3(0.0, -sz.y * 0.28, sz.z * 0.05))
+			base.height = sz.y * 0.30;  base.radial_segments = 4
+			var bmi := add_mi(container, base, mat, Vector3(0.0, -sz.y * 0.20, sz.z * 0.05))
 			bmi.rotation_degrees = Vector3(0.0, 45.0, 0.0)
 			# Mid tier: narrower stepped section
 			var mid := CylinderMesh.new()
-			mid.top_radius = sz.x * 0.30;  mid.bottom_radius = sz.x * 0.40
-			mid.height = sz.y * 0.35;  mid.radial_segments = 4
-			var mmi := add_mi(container, mid, mat, Vector3(0.0, sz.y * 0.06, sz.z * 0.05))
+			mid.top_radius = sz.x * 0.28;  mid.bottom_radius = sz.x * 0.38
+			mid.height = sz.y * 0.30;  mid.radial_segments = 4
+			var mmi := add_mi(container, mid, mat, Vector3(0.0, sz.y * 0.08, sz.z * 0.05))
 			mmi.rotation_degrees = Vector3(0.0, 45.0, 0.0)
 			# Upper tier: bridge housing
 			var upper := CylinderMesh.new()
-			upper.top_radius = sz.x * 0.22;  upper.bottom_radius = sz.x * 0.30
-			upper.height = sz.y * 0.28;  upper.radial_segments = 4
-			var umi := add_mi(container, upper, mat, Vector3(0.0, sz.y * 0.38, sz.z * 0.05))
+			upper.top_radius = sz.x * 0.18;  upper.bottom_radius = sz.x * 0.28
+			upper.height = sz.y * 0.24;  upper.radial_segments = 4
+			var umi := add_mi(container, upper, mat, Vector3(0.0, sz.y * 0.32, sz.z * 0.05))
 			umi.rotation_degrees = Vector3(0.0, 45.0, 0.0)
-			# Viewport band — thin glowing strip angled forward
-			var vp := box_mesh(Vector3(sz.x * 0.52, sz.y * 0.06, sz.z * 0.04))
+			# Viewport band — thin glowing strip across the bridge face
+			var vp := box_mesh(Vector3(sz.x * 0.48, sz.y * 0.05, sz.z * 0.03))
 			add_mi(container, vp,
 				glow_mat(Color(0.70, 0.85, 1.00), 1.2),
-				Vector3(0.0, sz.y * 0.42, -sz.z * 0.18))
-			# Shield generator domes (the iconic twin spheres)
+				Vector3(0.0, sz.y * 0.36, -sz.z * 0.20))
+			# Shield generator domes (iconic twin spheres)
 			var dome := SphereMesh.new()
-			dome.radius = sz.x * 0.10;  dome.height = dome.radius * 1.3
+			dome.radius = sz.x * 0.09;  dome.height = dome.radius * 1.3
 			dome.radial_segments = 12;  dome.rings = 6
-			for dx: float in [-sz.x * 0.16, sz.x * 0.16]:
-				add_mi(container, dome, mat, Vector3(dx, sz.y * 0.58, sz.z * 0.05))
+			for dx: float in [-sz.x * 0.14, sz.x * 0.14]:
+				add_mi(container, dome, mat, Vector3(dx, sz.y * 0.50, sz.z * 0.05))
 			# Antenna spire between domes
 			var spire := CylinderMesh.new()
 			spire.top_radius = 0.01;  spire.bottom_radius = sz.x * 0.02
-			spire.height = sz.y * 0.22;  spire.radial_segments = 4
-			add_mi(container, spire, mat, Vector3(0.0, sz.y * 0.64, sz.z * 0.05))
+			spire.height = sz.y * 0.18;  spire.radial_segments = 4
+			add_mi(container, spire, mat, Vector3(0.0, sz.y * 0.56, sz.z * 0.05))
+
 		"Engines":
-			add_mi(container, box_mesh(sz), mat, Vector3.ZERO)
-			var exh := CylinderMesh.new()
-			exh.top_radius = sz.x * 0.17;  exh.bottom_radius = exh.top_radius
-			exh.height = sz.y * 1.05;  exh.radial_segments = 14
-			var em := glow_mat(RoomData.type_color("Engines"), 1.2)
-			for ex: float in [-sz.x * 0.28, sz.x * 0.28]:
-				for ez: float in [-sz.z * 0.28, sz.z * 0.28]:
-					add_mi(container, exh, em, Vector3(ex, 0.0, ez))
+			# ── Imperial thruster bank — wide flat hull section with 3 glowing exhaust ports ──
+			# Main hull: wide, flat, angular
+			var wedge := CylinderMesh.new()
+			wedge.top_radius = sz.x * 0.38;  wedge.bottom_radius = sz.x * 0.52
+			wedge.height = sz.y * 0.50;  wedge.radial_segments = 4
+			var wmi := add_mi(container, wedge, mat, Vector3(0.0, -sz.y * 0.10, 0.0))
+			wmi.rotation_degrees = Vector3(0.0, 45.0, 0.0)
+			# Top hull plating — flat angled armor
+			add_mi(container, box_mesh(Vector3(sz.x * 0.90, sz.y * 0.10, sz.z * 1.05)),
+				mat, Vector3(0.0, sz.y * 0.12, 0.0))
+			# Surface trench detail
+			var trench_mat := StandardMaterial3D.new()
+			trench_mat.albedo_color = mat.albedo_color.darkened(0.35)
+			trench_mat.metallic = 0.6;  trench_mat.roughness = 0.35
+			if mat.albedo_texture != null:
+				trench_mat.albedo_texture = mat.albedo_texture
+			add_mi(container, box_mesh(Vector3(sz.x * 0.70, sz.y * 0.05, sz.z * 0.10)),
+				trench_mat, Vector3(0.0, sz.y * 0.18, 0.0))
+			# Three rectangular thruster ports (rear-facing glow)
+			var em := glow_mat(Color(0.30, 0.50, 1.00), 1.8)
+			for dx: float in [-sz.x * 0.28, 0.0, sz.x * 0.28]:
+				add_mi(container, box_mesh(Vector3(sz.x * 0.18, sz.y * 0.30, sz.z * 0.08)),
+					em, Vector3(dx, -sz.y * 0.05, sz.z * 0.52))
+
 		"Power":
-			var hex := CylinderMesh.new()
-			hex.top_radius = sz.x * 0.50;  hex.bottom_radius = hex.top_radius
-			hex.height = sz.y;  hex.radial_segments = 6
-			add_mi(container, hex, mat, Vector3.ZERO)
-			var core := SphereMesh.new()
-			core.radius = sz.x * 0.20;  core.height = core.radius * 2.0
-			add_mi(container, core,
-				glow_mat(RoomData.type_color("Power"), 1.6),
-				Vector3(0.0, sz.y * 0.12, 0.0))
+			# ── Imperial reactor hull section — flat angular wedge with ventral glow ──
+			# Main hull: low-profile angular slab
+			var hull := CylinderMesh.new()
+			hull.top_radius = sz.x * 0.40;  hull.bottom_radius = sz.x * 0.55
+			hull.height = sz.y * 0.45;  hull.radial_segments = 4
+			var hmi := add_mi(container, hull, mat, Vector3(0.0, -sz.y * 0.08, 0.0))
+			hmi.rotation_degrees = Vector3(0.0, 45.0, 0.0)
+			# Upper plating with raised ridge
+			add_mi(container, box_mesh(Vector3(sz.x * 0.85, sz.y * 0.10, sz.z * 0.95)),
+				mat, Vector3(0.0, sz.y * 0.16, 0.0))
+			add_mi(container, box_mesh(Vector3(sz.x * 0.20, sz.y * 0.14, sz.z * 0.70)),
+				mat, Vector3(0.0, sz.y * 0.26, 0.0))
+			# Surface trench details (port and starboard)
+			var trench_mat := StandardMaterial3D.new()
+			trench_mat.albedo_color = mat.albedo_color.darkened(0.35)
+			trench_mat.metallic = 0.6;  trench_mat.roughness = 0.35
+			if mat.albedo_texture != null:
+				trench_mat.albedo_texture = mat.albedo_texture
+			for dx: float in [-sz.x * 0.28, sz.x * 0.28]:
+				add_mi(container, box_mesh(Vector3(sz.x * 0.12, sz.y * 0.05, sz.z * 0.60)),
+					trench_mat, Vector3(dx, sz.y * 0.22, 0.0))
+			# Ventral reactor glow (visible from below)
+			var core_glow := glow_mat(RoomData.type_color("Power"), 1.6)
+			add_mi(container, box_mesh(Vector3(sz.x * 0.30, sz.y * 0.04, sz.z * 0.40)),
+				core_glow, Vector3(0.0, -sz.y * 0.32, 0.0))
+
 		"Tactical":
-			add_mi(container, box_mesh(Vector3(sz.x, sz.y * 0.55, sz.z)),
-				mat, Vector3(0.0, -sz.y * 0.20, 0.0))
-			var dome := SphereMesh.new()
-			dome.radius = sz.x * 0.18;  dome.height = dome.radius
-			for dx: float in [-sz.x * 0.38, 0.0, sz.x * 0.38]:
-				add_mi(container, dome, mat, Vector3(dx, sz.y * 0.22, 0.0))
+			# ── Imperial weapons platform — flat angular hull with turbolaser turrets ──
+			# Main hull: flat angular slab
+			var hull := CylinderMesh.new()
+			hull.top_radius = sz.x * 0.38;  hull.bottom_radius = sz.x * 0.50
+			hull.height = sz.y * 0.40;  hull.radial_segments = 4
+			var hmi := add_mi(container, hull, mat, Vector3(0.0, -sz.y * 0.12, 0.0))
+			hmi.rotation_degrees = Vector3(0.0, 45.0, 0.0)
+			# Upper plating
+			add_mi(container, box_mesh(Vector3(sz.x * 0.85, sz.y * 0.08, sz.z * 0.90)),
+				mat, Vector3(0.0, sz.y * 0.10, 0.0))
+			# Surface trench (central targeting channel)
+			var trench_mat := StandardMaterial3D.new()
+			trench_mat.albedo_color = mat.albedo_color.darkened(0.35)
+			trench_mat.metallic = 0.6;  trench_mat.roughness = 0.35
+			if mat.albedo_texture != null:
+				trench_mat.albedo_texture = mat.albedo_texture
+			add_mi(container, box_mesh(Vector3(sz.x * 0.65, sz.y * 0.04, sz.z * 0.10)),
+				trench_mat, Vector3(0.0, sz.y * 0.15, -sz.z * 0.15))
+			# Turbolaser turrets — twin-barrel mounts on raised pedestals
+			for dx: float in [-sz.x * 0.30, sz.x * 0.30]:
+				# Pedestal
+				add_mi(container, box_mesh(Vector3(sz.x * 0.10, sz.y * 0.16, sz.z * 0.10)),
+					mat, Vector3(dx, sz.y * 0.22, -sz.z * 0.10))
+				# Turret dome
+				var dome := SphereMesh.new()
+				dome.radius = sz.x * 0.08;  dome.height = dome.radius * 0.8
+				dome.radial_segments = 8;  dome.rings = 4
+				add_mi(container, dome, mat, Vector3(dx, sz.y * 0.32, -sz.z * 0.10))
+				# Twin barrels
+				var barrel := CylinderMesh.new()
+				barrel.top_radius = sz.x * 0.02;  barrel.bottom_radius = barrel.top_radius
+				barrel.height = sz.z * 0.35;  barrel.radial_segments = 6
+				for bx: float in [-sz.x * 0.04, sz.x * 0.04]:
+					var bmi := add_mi(container, barrel, mat,
+						Vector3(dx + bx, sz.y * 0.30, -sz.z * 0.32))
+					bmi.rotation_degrees = Vector3(90.0, 0.0, 0.0)
+			# Heavy turbolaser — center mount, longer barrel
+			var heavy := CylinderMesh.new()
+			heavy.top_radius = sz.x * 0.03;  heavy.bottom_radius = heavy.top_radius
+			heavy.height = sz.z * 0.50;  heavy.radial_segments = 6
+			var hvy_mi := add_mi(container, heavy, mat,
+				Vector3(0.0, sz.y * 0.18, -sz.z * 0.38))
+			hvy_mi.rotation_degrees = Vector3(90.0, 0.0, 0.0)
+			# Targeting glow at barrel tip
+			var tip := SphereMesh.new()
+			tip.radius = sz.x * 0.04;  tip.height = tip.radius * 2.0
+			add_mi(container, tip,
+				glow_mat(Color(0.20, 1.00, 0.20), 1.4),
+				Vector3(0.0, sz.y * 0.18, -sz.z * 0.64))
+
 		_:
 			_generic(container, rtype, 0, mat, sz)
 
@@ -315,6 +405,161 @@ static func _dune(container: Node3D, rtype: String,
 			for sx: float in [-1.0, 1.0]:
 				add_mi(container, tip, tm,
 					Vector3(sx * sz.x * 0.28, sz.y * 0.52, 0.0))
+		_:
+			_generic(container, rtype, 0, mat, sz)
+
+
+# ── Star Mercenaries — kitbashed, asymmetric, scrappy ──────────────────
+
+static func _mercs(container: Node3D, rtype: String,
+		mat: StandardMaterial3D, sz: Vector3) -> void:
+	# Darker grime material for patches and weld seams
+	var grime := StandardMaterial3D.new()
+	grime.albedo_color = mat.albedo_color.darkened(0.40)
+	grime.metallic = 0.70;  grime.roughness = 0.55
+	if mat.albedo_texture != null:
+		grime.albedo_texture = mat.albedo_texture
+
+	match rtype:
+		"Command":
+			# ── Smuggler cockpit: asymmetric pod, bubble canopy, off-center antenna ──
+			# Main body — lopsided box (wider on port side)
+			add_mi(container, box_mesh(Vector3(sz.x * 0.70, sz.y * 0.50, sz.z * 0.80)),
+				mat, Vector3(-sz.x * 0.05, -sz.y * 0.10, 0.0))
+			# Raised cockpit section — offset starboard
+			add_mi(container, box_mesh(Vector3(sz.x * 0.45, sz.y * 0.30, sz.z * 0.55)),
+				mat, Vector3(sz.x * 0.10, sz.y * 0.18, -sz.z * 0.10))
+			# Bubble canopy — glass-like dome, off-center
+			var canopy := SphereMesh.new()
+			canopy.radius = sz.x * 0.22;  canopy.height = sz.y * 0.30
+			canopy.radial_segments = 12;  canopy.rings = 6
+			var glass := StandardMaterial3D.new()
+			glass.albedo_color = Color(0.35, 0.55, 0.70, 0.75)
+			glass.metallic = 0.20;  glass.roughness = 0.15
+			glass.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+			add_mi(container, canopy, glass, Vector3(sz.x * 0.10, sz.y * 0.38, -sz.z * 0.22))
+			# Antenna mast — off-center, tilted
+			var antenna := CylinderMesh.new()
+			antenna.top_radius = 0.01;  antenna.bottom_radius = sz.x * 0.03
+			antenna.height = sz.y * 0.45;  antenna.radial_segments = 4
+			var ami := add_mi(container, antenna, grime,
+				Vector3(-sz.x * 0.28, sz.y * 0.42, sz.z * 0.15))
+			ami.rotation_degrees = Vector3(8.0, 0.0, -12.0)
+			# Welded armor patch on side
+			add_mi(container, box_mesh(Vector3(sz.x * 0.12, sz.y * 0.25, sz.z * 0.30)),
+				grime, Vector3(-sz.x * 0.38, -sz.y * 0.05, sz.z * 0.10))
+			# Console glow strip
+			add_mi(container, box_mesh(Vector3(sz.x * 0.35, sz.y * 0.03, sz.z * 0.04)),
+				glow_mat(Color(0.20, 0.85, 0.40), 1.2),
+				Vector3(sz.x * 0.08, sz.y * 0.12, -sz.z * 0.42))
+
+		"Engines":
+			# ── Hotrod drive: oversized thruster bells on a small frame ──
+			# Small frame body
+			add_mi(container, box_mesh(Vector3(sz.x * 0.55, sz.y * 0.40, sz.z * 0.65)),
+				mat, Vector3(0.0, 0.0, -sz.z * 0.15))
+			# Two big mismatched thruster bells (one bigger than the other)
+			var bell1 := CylinderMesh.new()
+			bell1.top_radius = sz.x * 0.12;  bell1.bottom_radius = sz.x * 0.28
+			bell1.height = sz.z * 0.55;  bell1.radial_segments = 10
+			var b1mi := add_mi(container, bell1, mat,
+				Vector3(-sz.x * 0.18, -sz.y * 0.05, sz.z * 0.30))
+			b1mi.rotation_degrees = Vector3(90.0, 0.0, 0.0)
+			var bell2 := CylinderMesh.new()
+			bell2.top_radius = sz.x * 0.10;  bell2.bottom_radius = sz.x * 0.24
+			bell2.height = sz.z * 0.50;  bell2.radial_segments = 10
+			var b2mi := add_mi(container, bell2, mat,
+				Vector3(sz.x * 0.20, sz.y * 0.05, sz.z * 0.28))
+			b2mi.rotation_degrees = Vector3(90.0, 0.0, 0.0)
+			# Engine glow inside bells
+			var eg := glow_mat(Color(1.00, 0.55, 0.15), 2.2)
+			var glow_sphere := SphereMesh.new()
+			glow_sphere.radius = sz.x * 0.15;  glow_sphere.height = glow_sphere.radius * 2.0
+			add_mi(container, glow_sphere, eg, Vector3(-sz.x * 0.18, -sz.y * 0.05, sz.z * 0.52))
+			add_mi(container, glow_sphere, eg, Vector3(sz.x * 0.20, sz.y * 0.05, sz.z * 0.48))
+			# Exposed pipe running along the side
+			var pipe := CylinderMesh.new()
+			pipe.top_radius = sz.x * 0.03;  pipe.bottom_radius = pipe.top_radius
+			pipe.height = sz.z * 0.90;  pipe.radial_segments = 6
+			var pmi := add_mi(container, pipe, grime,
+				Vector3(sz.x * 0.32, sz.y * 0.18, 0.0))
+			pmi.rotation_degrees = Vector3(90.0, 0.0, 0.0)
+			# Weld patch
+			add_mi(container, box_mesh(Vector3(sz.x * 0.14, sz.y * 0.12, sz.z * 0.20)),
+				grime, Vector3(-sz.x * 0.30, sz.y * 0.15, -sz.z * 0.25))
+
+		"Power":
+			# ── Salvage reactor: exposed core, mismatched containment, visible conduits ──
+			# Main containment — boxy and uneven
+			add_mi(container, box_mesh(Vector3(sz.x * 0.65, sz.y * 0.60, sz.z * 0.70)),
+				mat, Vector3(sz.x * 0.05, -sz.y * 0.05, 0.0))
+			# Secondary containment box — bolted on top, smaller, offset
+			add_mi(container, box_mesh(Vector3(sz.x * 0.40, sz.y * 0.30, sz.z * 0.45)),
+				mat, Vector3(-sz.x * 0.12, sz.y * 0.28, sz.z * 0.08))
+			# Exposed reactor core glow
+			var core := SphereMesh.new()
+			core.radius = sz.x * 0.18;  core.height = core.radius * 2.0
+			add_mi(container, core,
+				glow_mat(Color(0.30, 0.65, 1.00), 2.0),
+				Vector3(sz.x * 0.05, sz.y * 0.05, 0.0))
+			# Conduit pipes running outside
+			var pipe := CylinderMesh.new()
+			pipe.top_radius = sz.x * 0.03;  pipe.bottom_radius = pipe.top_radius
+			pipe.height = sz.y * 0.85;  pipe.radial_segments = 6
+			for dx: float in [-sz.x * 0.38, sz.x * 0.42]:
+				add_mi(container, pipe, grime, Vector3(dx, 0.0, -sz.z * 0.25))
+			# Horizontal pipe
+			var hpipe := CylinderMesh.new()
+			hpipe.top_radius = sz.x * 0.025;  hpipe.bottom_radius = hpipe.top_radius
+			hpipe.height = sz.x * 0.70;  hpipe.radial_segments = 6
+			var hmi := add_mi(container, hpipe, grime,
+				Vector3(0.0, sz.y * 0.30, -sz.z * 0.25))
+			hmi.rotation_degrees = Vector3(0.0, 0.0, 90.0)
+			# Weld seam patches
+			add_mi(container, box_mesh(Vector3(sz.x * 0.15, sz.y * 0.10, sz.z * 0.25)),
+				grime, Vector3(sz.x * 0.35, -sz.y * 0.20, sz.z * 0.20))
+
+		"Tactical":
+			# ── Improvised weapon mount: chin turret, mismatched barrels, armor bolted on ──
+			# Mounting platform — angular, scarred
+			add_mi(container, box_mesh(Vector3(sz.x * 0.70, sz.y * 0.35, sz.z * 0.65)),
+				mat, Vector3(0.0, -sz.y * 0.12, 0.0))
+			# Welded armor plate — angled on one side
+			var armor := add_mi(container,
+				box_mesh(Vector3(sz.x * 0.15, sz.y * 0.40, sz.z * 0.50)),
+				grime, Vector3(sz.x * 0.38, -sz.y * 0.05, 0.0))
+			armor.rotation_degrees = Vector3(0.0, 0.0, -10.0)
+			# Chin turret — underslung rotating mount
+			var turret_base := CylinderMesh.new()
+			turret_base.top_radius = sz.x * 0.16;  turret_base.bottom_radius = sz.x * 0.20
+			turret_base.height = sz.y * 0.18;  turret_base.radial_segments = 8
+			add_mi(container, turret_base, mat, Vector3(0.0, -sz.y * 0.38, -sz.z * 0.08))
+			# Mismatched gun barrels — one longer than the other
+			var barrel1 := CylinderMesh.new()
+			barrel1.top_radius = sz.x * 0.03;  barrel1.bottom_radius = sz.x * 0.04
+			barrel1.height = sz.z * 0.55;  barrel1.radial_segments = 6
+			var bmi1 := add_mi(container, barrel1, grime,
+				Vector3(-sz.x * 0.08, -sz.y * 0.35, -sz.z * 0.40))
+			bmi1.rotation_degrees = Vector3(90.0, 0.0, 0.0)
+			var barrel2 := CylinderMesh.new()
+			barrel2.top_radius = sz.x * 0.025;  barrel2.bottom_radius = sz.x * 0.035
+			barrel2.height = sz.z * 0.45;  barrel2.radial_segments = 6
+			var bmi2 := add_mi(container, barrel2, grime,
+				Vector3(sz.x * 0.08, -sz.y * 0.38, -sz.z * 0.35))
+			bmi2.rotation_degrees = Vector3(90.0, 0.0, 0.0)
+			# Muzzle flash glow on longer barrel
+			var muzzle := SphereMesh.new()
+			muzzle.radius = sz.x * 0.05;  muzzle.height = muzzle.radius * 2.0
+			add_mi(container, muzzle,
+				glow_mat(Color(1.00, 0.35, 0.10), 1.5),
+				Vector3(-sz.x * 0.08, -sz.y * 0.35, -sz.z * 0.68))
+			# Top-mounted sensor dish — tilted
+			var dish := SphereMesh.new()
+			dish.radius = sz.x * 0.10;  dish.height = dish.radius * 0.6
+			var dmi := add_mi(container, dish, mat,
+				Vector3(sz.x * 0.20, sz.y * 0.18, sz.z * 0.15))
+			dmi.rotation_degrees = Vector3(15.0, 0.0, 8.0)
+
 		_:
 			_generic(container, rtype, 0, mat, sz)
 

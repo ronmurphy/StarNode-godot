@@ -132,8 +132,8 @@ func _setup_display_scale() -> void:
 
 	# Scale proportionally to dpr, but stay conservative so the UI doesn't
 	# overflow on smaller tablet viewport widths.
-	# dpr 1.5 -> ~1.2x  |  dpr 2.0 -> ~1.5x  |  dpr 3.0 -> ~1.8x
-	var scale := clampf(1.0 + (dpr - 1.0) * 0.5, 1.0, 2.0)
+	# dpr 1.5 -> ~1.08x  |  dpr 2.0 -> ~1.15x  |  dpr 3.0 -> ~1.30x
+	var scale := clampf(1.0 + (dpr - 1.0) * 0.15, 1.0, 1.35)
 	get_window().content_scale_factor = scale
 
 
