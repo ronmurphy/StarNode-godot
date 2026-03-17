@@ -33,6 +33,7 @@ var _hull_edit_mode: bool = false
 var _filtered_rooms: Array = []
 var _current_system: String = "sol"   # tracked across jobs
 var _room_textures:  Dictionary = {}   # node_uid → res:// texture path
+var _room_colors:    Dictionary = {}   # node_uid → "#rrggbb" hex (empty = type default)
 var _last_save_path: String    = ""   # most recent save/load path for auto-save
 var _crew:           Array     = []   # Array of crew Dictionaries
 var _crew_counter:   int       = 0    # for unique crew IDs
@@ -50,6 +51,8 @@ var _crew_missions_completed: Array = []
 var _active_crew_mission: String = ""
 var _log_overlay: Control = null       # captain's log overlay (if open)
 var _web_load_cb  = null               # JS callback reference — must stay alive until file is picked
+var _cached_jobs: Array = []           # cached job listings for current port visit (no rerolling)
+var _mission_jobs_since_available: int = 0  # jobs done since a mission needs an undiscovered dest
 
 const CARGO_JOB_TYPES: Array = ["Freight", "Smuggling", "Colony Supply"]
 
@@ -807,6 +810,7 @@ func _sell_ship_node(ship_node: ShipNode, value: int) -> void:
 			graph_edit.disconnect_node(conn.from_node, conn.from_port, conn.to_node, conn.to_port)
 	credits += value
 	_room_textures.erase(ship_node.node_uid)
+	_room_colors.erase(ship_node.node_uid)
 	_ship_3d_layout.erase(ship_node.node_uid)
 	# Unassign any crew from this room
 	for cm in _crew:
@@ -826,6 +830,7 @@ func _delete_ship_node(ship_node: ShipNode) -> void:
 			graph_edit.disconnect_node(conn.from_node, conn.from_port, conn.to_node, conn.to_port)
 	credits += ship_node.sell_value()
 	_room_textures.erase(ship_node.node_uid)
+	_room_colors.erase(ship_node.node_uid)
 	ship_node.queue_free()
 	_update_header()
 
@@ -940,6 +945,7 @@ func _open_port_menu(tab: String = "summary") -> void:
 		"wages":          0,
 		"ship_nodes":     _all_nodes(),
 		"room_textures":  _room_textures,
+		"room_colors":    _room_colors,
 		"start_tab":      tab,
 		"price_mult":     StarMapData.get_price_multiplier(_current_system),
 	})
@@ -1821,6 +1827,7 @@ func _open_3d_layout() -> void:
 	editor.setup({
 		"ship_nodes":      _all_nodes(),
 		"room_textures":   _room_textures,
+		"room_colors":     _room_colors,
 		"existing_layout": _ship_3d_layout,
 	})
 	_layout_editor = editor
@@ -1830,6 +1837,16 @@ func _open_3d_layout() -> void:
 			var tex: String = layout[uid].get("tex", "")
 			if not tex.is_empty():
 				_room_textures[uid] = tex
+		# Sync color tint data back to ShipNode properties (for save/load)
+		for sn in _all_nodes():
+			var ship_node := sn as ShipNode
+			if ship_node == null:
+				continue
+			var hex: String = _room_colors.get(ship_node.node_uid, "")
+			if hex.is_empty():
+				ship_node.color_tint = Color(-1, -1, -1)
+			else:
+				ship_node.color_tint = Color.html(hex)
 		_layout_editor = null
 		_toast("3D layout saved!"))
 	editor.layout_cancelled.connect(func() -> void:
@@ -1847,6 +1864,9 @@ func _on_new_ship() -> void:
 	_node_counter   = 0
 	_current_system = "sol"
 	_room_textures.clear()
+	_room_colors.clear()
+	_cached_jobs.clear()
+	_mission_jobs_since_available = 0
 	_crew.clear()
 	_crew_counter   = 0
 	_jobs_completed = 0
@@ -1970,6 +1990,83 @@ func _get_crew_mission_at(system_id: String) -> String:
 	return ""
 
 
+func _check_mission_destination_failsafe() -> void:
+	## After each regular job, check if a mission destination is undiscovered.
+	## After 3 jobs with an undiscovered mission dest, auto-discover it.
+	var undiscovered_dest: String = ""
+	var hint_crew: String = "percy"
+	var hint_name: String = ""
+
+	# Check Percy missions first
+	for m in _get_available_percy_missions():
+		var loc: String = m.location as String
+		if not _discovered_systems.has(loc):
+			undiscovered_dest = loc
+			hint_crew = "percy"
+			hint_name = StarMapData.find_system(loc).get("name", "unknown") as String
+			break
+
+	# Then crew missions
+	if undiscovered_dest.is_empty():
+		for m in _get_available_crew_missions():
+			var loc: String = m.location as String
+			if not _discovered_systems.has(loc):
+				undiscovered_dest = loc
+				hint_crew = m.get("crew", "percy") as String
+				hint_name = StarMapData.find_system(loc).get("name", "unknown") as String
+				break
+
+	if undiscovered_dest.is_empty():
+		_mission_jobs_since_available = 0
+		return
+
+	_mission_jobs_since_available += 1
+	if _mission_jobs_since_available < 3:
+		return
+
+	# Failsafe fires — auto-discover the destination
+	_discovered_systems.append(undiscovered_dest)
+	_mission_jobs_since_available = 0
+	var display_name: String = CREW_DISPLAY_NAMES.get(hint_crew, "Percy")
+	_toast("%s charted a route to %s!" % [display_name, hint_name])
+
+
+func _inject_mission_failsafe_job() -> void:
+	## Ensures mission destinations appear on the job board.
+	## If an existing job already goes there, tag it with the crew name.
+	## If not, inject a guaranteed job and tag it.
+	## Collects all available missions with discovered destinations.
+	var mission_dests: Array = []  # [{loc, crew_id}]
+
+	for m in _get_available_percy_missions():
+		var loc: String = m.location as String
+		if _discovered_systems.has(loc):
+			mission_dests.append({"loc": loc, "crew_id": "percy"})
+	for m in _get_available_crew_missions():
+		var loc: String = m.location as String
+		if _discovered_systems.has(loc):
+			mission_dests.append({"loc": loc, "crew_id": m.get("crew", "") as String})
+
+	for md in mission_dests:
+		var loc: String = md.loc
+		var crew_name: String = CREW_DISPLAY_NAMES.get(md.crew_id, "Crew")
+		# Check if an existing job already goes there
+		var found_existing := false
+		for j in _cached_jobs:
+			if j.destination_id == loc:
+				j["mission_for"] = crew_name
+				found_existing = true
+				break
+		if not found_existing:
+			# Inject a new job to that destination
+			var forced: Array = StarMapData.generate_job_listings(
+				_current_system, _discovered_systems, loc)
+			if not forced.is_empty():
+				var job: Dictionary = forced[0]
+				job["mission_for"] = crew_name
+				_cached_jobs.append(job)
+
+
 func _on_save() -> void:
 	if OS.get_name() == "Web":
 		_save_to_web()
@@ -2056,6 +2153,7 @@ func _build_save_dict() -> Dictionary:
 			"pos_y":      ship_node.position_offset.y,
 			"durability": ship_node.current_durability,
 			"texture":    _room_textures.get(ship_node.node_uid, ""),
+			"color_tint": _room_colors.get(ship_node.node_uid, ""),
 			"hull_px":    ship_node.hull_pos.x,
 			"hull_py":    ship_node.hull_pos.y,
 		})
@@ -2121,6 +2219,9 @@ func _apply_save_data(data: Dictionary, path: String) -> void:
 		n.queue_free()
 	graph_edit.clear_connections()
 	_room_textures.clear()
+	_room_colors.clear()
+	_cached_jobs.clear()
+	_mission_jobs_since_available = 0
 
 	ship_name       = data.get("ship_name",      "My Ship")
 	credits         = data.get("credits",        2000)
@@ -2180,6 +2281,11 @@ func _apply_save_data(data: Dictionary, path: String) -> void:
 			# Legacy save without texture data — assign a random hull texture
 			_room_textures[nd.uid] = ROOM_TEXTURES[randi() % ROOM_TEXTURES.size()]
 			legacy_textures_assigned = true
+		# Per-room color tint (new saves only; old saves default to type color)
+		var tint_hex: String = nd.get("color_tint", "")
+		if not tint_hex.is_empty():
+			ship_node.set_color_tint(Color.html(tint_hex))
+			_room_colors[nd.uid] = tint_hex
 		name_map[nd.name] = ship_node
 
 	# Restore connections (must happen after all nodes exist)
@@ -2205,12 +2311,14 @@ func _on_find_job() -> void:
 	if _job_board_popup and is_instance_valid(_job_board_popup):
 		return   # already open
 
-	var listings: Array = StarMapData.generate_job_listings(_current_system, _discovered_systems)
-	if listings.is_empty():
+	if _cached_jobs.is_empty():
+		_cached_jobs = StarMapData.generate_job_listings(_current_system, _discovered_systems)
+		_inject_mission_failsafe_job()
+	if _cached_jobs.is_empty():
 		_toast("No jobs available right now.")
 		return
 
-	_show_job_board(listings)
+	_show_job_board(_cached_jobs)
 
 
 func _show_job_board(listings: Array) -> void:
@@ -2304,11 +2412,20 @@ func _build_job_row(job: Dictionary, popup: PanelContainer) -> PanelContainer:
 	info_vb.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	hb.add_child(info_vb)
 
-	# Job type + destination
-	var lbl_title := Label.new()
-	lbl_title.text = "%s >> %s" % [job.job_type, job.destination_name]
-	lbl_title.add_theme_font_size_override("font_size", 12)
-	lbl_title.add_theme_color_override("font_color", Color(0.9, 0.92, 1.0, 1.0))
+	# Job type + destination (with crew name if mission-guaranteed job)
+	var mission_for: String = job.get("mission_for", "")
+	var lbl_title := RichTextLabel.new()
+	lbl_title.bbcode_enabled = true
+	lbl_title.fit_content = true
+	lbl_title.scroll_active = false
+	lbl_title.add_theme_font_size_override("normal_font_size", 12)
+	lbl_title.add_theme_font_size_override("bold_font_size", 12)
+	lbl_title.add_theme_color_override("default_color", Color(0.9, 0.92, 1.0, 1.0))
+	if mission_for.is_empty():
+		lbl_title.text = "%s >> %s" % [job.job_type, job.destination_name]
+	else:
+		lbl_title.text = "[b][color=#ffd050]%s[/color][/b] -- %s >> %s" % [
+			mission_for, job.job_type, job.destination_name]
 	info_vb.add_child(lbl_title)
 
 	# Description
@@ -2522,6 +2639,7 @@ func _launch_flight(job: Dictionary, cargo_bonus: int) -> void:
 		"job_type":        job.job_type,
 		"job_pay_per_day": job.pay_per_day,
 		"room_textures":   _room_textures,
+		"room_colors":     _room_colors,
 		"crew":            _crew,
 		"wages":           wages,
 		"ship_3d_layout":  _ship_3d_layout,
@@ -2582,6 +2700,7 @@ func _on_job_finished(result: Dictionary) -> void:
 	credits += earned - wages
 	var prev_system := _current_system
 	_current_system = result.get("destination_id", _current_system)
+	_cached_jobs.clear()  # fresh jobs at new port (no rerolling)
 	_update_header()
 
 	# ── Crew veteran progression ──
@@ -2611,6 +2730,13 @@ func _on_job_finished(result: Dictionary) -> void:
 	if not newly_found.is_empty():
 		_toast("Sensors charted %d new system(s): %s" % [
 			newly_found.size(), ", ".join(newly_found)])
+
+	# ── Mission destination failsafe ──
+	# If a mission is available but its destination hasn't been discovered,
+	# auto-discover it after 3 regular jobs so players don't get stuck.
+	var is_story_job: bool = result.get("is_percy", false) or result.get("is_crew_mission", false)
+	if not is_story_job:
+		_check_mission_destination_failsafe()
 
 	# ── Percy mission completion ──
 	var is_percy: bool = result.get("is_percy", false)
@@ -2725,6 +2851,7 @@ func _open_port_after_job(result: Dictionary, wages: int) -> void:
 		"wages":          wages,
 		"ship_nodes":     _all_nodes(),
 		"room_textures":  _room_textures,
+		"room_colors":    _room_colors,
 		"price_mult":     StarMapData.get_price_multiplier(_current_system),
 	})
 	add_child(port)

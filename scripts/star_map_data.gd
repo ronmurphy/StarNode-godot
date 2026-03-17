@@ -174,12 +174,42 @@ const JOB_TYPES: Array = [
 	{ "tag": "Colony Supply",      "desc": "Deliver building materials to %s.",                  "pay_mult": 1.05 },
 ]
 
-func generate_job_listings(current_id: String, discovered: Array = []) -> Array:
+func generate_job_listings(current_id: String, discovered: Array = [], forced_destination: String = "") -> Array:
 	## Returns 1–5 random job listings from the current system.
+	## If forced_destination is set, returns exactly 1 job to that system.
 	var current_sys := find_system(current_id)
 	if current_sys.is_empty():
 		current_sys = SYSTEMS[0]
 	var current_pos: Vector3 = current_sys.pos
+
+	# ── Forced single-destination mode (for mission failsafe) ─────────────
+	if not forced_destination.is_empty():
+		var dest := find_system(forced_destination)
+		if dest.is_empty():
+			return []
+		var dist: float = current_pos.distance_to(dest.pos)
+		var days: int = maxi(1, roundi(dist / UNITS_PER_DAY))
+		var pool: Array = JOB_TYPES.duplicate()
+		pool.shuffle()
+		var jtype: Dictionary = pool[0]
+		var base_pay_per_day: int = roundi((45 + randi_range(0, 20)) * jtype.pay_mult)
+		if days >= 10:
+			base_pay_per_day += 8
+		if days >= 20:
+			base_pay_per_day += 12
+		if is_harsh(dest.id):
+			base_pay_per_day += 15
+		return [{
+			"destination_id":   dest.id,
+			"destination_name": dest.name,
+			"destination_desc": dest.desc,
+			"days":             days,
+			"pay_per_day":      base_pay_per_day,
+			"total_pay":        base_pay_per_day * days,
+			"job_type":         jtype.tag,
+			"job_desc":         jtype.desc % dest.name,
+			"harsh":            is_harsh(dest.id),
+		}]
 
 	# Gather all reachable destinations (exclude current, filter by discovered)
 	var others: Array = []

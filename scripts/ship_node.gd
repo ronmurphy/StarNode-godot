@@ -11,6 +11,7 @@ var current_durability: int = 100
 var max_durability: int = 100
 var hull_pos: Vector2 = Vector2.ZERO       # standalone hull layout position (decoupled from GraphEdit)
 var _room_cost: int = 0
+var color_tint: Color = Color(-1, -1, -1)  # sentinel = use room-type default (3D only)
 
 var _lbl_power: Label
 var _lbl_type: Label
@@ -28,7 +29,7 @@ func setup(def: Dictionary, uid: String) -> void:
 	custom_minimum_size = Vector2(180, 0)
 	_room_cost = def.cost
 
-	# Title bar color via theme override
+	# Title bar color via theme override — always uses type default
 	var title_color: Color = RoomData.type_color(def.type)
 	add_theme_color_override("title_color", Color.WHITE)
 	add_theme_stylebox_override("titlebar", _make_titlebar(title_color))
@@ -117,6 +118,16 @@ func repair_full(def: Dictionary) -> void:
 	current_durability = def.durability
 	_refresh_dur_bar()
 	_refresh_sell_label()
+
+
+func get_effective_tint() -> Color:
+	if color_tint.r < 0:
+		return RoomData.type_color(RoomData.find(def_id).get("type", "Utility"))
+	return color_tint
+
+
+func set_color_tint(c: Color) -> void:
+	color_tint = c
 
 
 func _refresh_sell_label() -> void:

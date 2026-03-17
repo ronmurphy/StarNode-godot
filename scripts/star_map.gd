@@ -354,9 +354,14 @@ func _build_from_layout(vis: Node3D, ship_nodes: Array, textures: Dictionary) ->
 			"Tactical": box_sz = Vector3(1.35, 0.60, 1.35)
 			_:          box_sz = Vector3(1.25, 0.48, 1.25)
 
-		# Base material: prefer per-room saved texture, fall back to type texture
+		# Base material: per-room color tint (or type default), then texture
+		var room_colors: Dictionary = _params.get("room_colors", {})
 		var mat := StandardMaterial3D.new()
-		mat.albedo_color = RoomData.type_color(rtype).darkened(0.10)
+		var custom_hex: String = room_colors.get(sn.node_uid, "")
+		if custom_hex.is_empty():
+			mat.albedo_color = RoomData.type_color(rtype).darkened(0.10)
+		else:
+			mat.albedo_color = Color.html(custom_hex).darkened(0.10)
 		mat.metallic     = 0.55
 		mat.roughness    = 0.40
 		var tex_path: String = room_textures.get(sn.node_uid, "")

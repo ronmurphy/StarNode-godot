@@ -86,6 +86,8 @@ var _ship_rot_val:    Label
 var _tex_paths:    Array  = []   # res:// paths to all texture pngs
 var _tex_buttons:  Array  = []   # Array of {btn, path}
 var _lbl_tex_name: Label  = null # readout of currently highlighted tex
+var _color_picker_btn: ColorPickerButton = null  # per-room tint chooser
+var _lbl_tint_name:    Label  = null
 
 # ── Camera orbit state ───────────────────────────────────────────────────────
 var _cam_distance: float = 12.0
@@ -432,7 +434,12 @@ func _build_ship_preview() -> void:
 				tex = load(tex_path) as Texture2D
 		if tex == null:
 			tex = type_textures.get(rtype, null) as Texture2D
-		var mat := ShipBuilder3D.room_material(rtype, tex)
+		var room_colors: Dictionary = _params.get("room_colors", {})
+		var custom_hex: String = room_colors.get(sn.node_uid, "")
+		var color_ov := Color(-1, -1, -1)
+		if not custom_hex.is_empty():
+			color_ov = Color.html(custom_hex)
+		var mat := ShipBuilder3D.room_material(rtype, tex, color_ov)
 
 		var container := Node3D.new()
 		container.position = base_pos
@@ -499,6 +506,9 @@ func _select_room(idx: int) -> void:
 		_room_list.deselect_all()
 		_zero_sliders()
 		_refresh_tex_panel("")
+		if _color_picker_btn:
+			_color_picker_btn.disabled = true
+			_lbl_tint_name.text = ""
 		return
 
 	_room_list.select(idx)
@@ -528,6 +538,9 @@ func _select_room(idx: int) -> void:
 	if cur_tex.is_empty():
 		cur_tex = (_params.get("room_textures", {}) as Dictionary).get(sel_uid, "")
 	_refresh_tex_panel(cur_tex)
+
+	# Refresh tint color picker
+	_refresh_tint_picker(sel_uid)
 
 
 func _try_select_room(screen_pos: Vector2) -> void:
@@ -784,6 +797,43 @@ func _build_texture_panel(parent: Control) -> void:
 	_lbl_tex_name.clip_text = true
 	vb.add_child(_lbl_tex_name)
 
+	# ── Color tint row ──────────────────────────────────────────────────────
+	var tint_row := HBoxContainer.new()
+	tint_row.add_theme_constant_override("separation", 6)
+	vb.add_child(tint_row)
+
+	var tint_lbl := Label.new()
+	tint_lbl.text = "Tint"
+	tint_lbl.custom_minimum_size.x = 28
+	tint_lbl.add_theme_font_size_override("font_size", 10)
+	tint_lbl.add_theme_color_override("font_color", CLR_DIM)
+	tint_row.add_child(tint_lbl)
+
+	_color_picker_btn = ColorPickerButton.new()
+	_color_picker_btn.custom_minimum_size = Vector2(32, 24)
+	_color_picker_btn.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	_color_picker_btn.color = Color(0.5, 0.5, 0.5)
+	_color_picker_btn.edit_alpha = false
+	_color_picker_btn.disabled = true
+	_color_picker_btn.add_theme_font_size_override("font_size", 1)
+	_color_picker_btn.color_changed.connect(_on_tint_color_changed)
+	tint_row.add_child(_color_picker_btn)
+
+	var btn_reset_tint := Button.new()
+	btn_reset_tint.text = "Reset"
+	btn_reset_tint.custom_minimum_size = Vector2(44, 24)
+	btn_reset_tint.add_theme_font_size_override("font_size", 9)
+	btn_reset_tint.add_theme_color_override("font_color", Color(0.6, 0.65, 0.75))
+	btn_reset_tint.pressed.connect(_on_reset_tint)
+	tint_row.add_child(btn_reset_tint)
+
+	_lbl_tint_name = Label.new()
+	_lbl_tint_name.text = ""
+	_lbl_tint_name.add_theme_font_size_override("font_size", 8)
+	_lbl_tint_name.add_theme_color_override("font_color", CLR_DIM)
+	_lbl_tint_name.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	vb.add_child(_lbl_tint_name)
+
 	var sep := HSeparator.new()
 	sep.add_theme_color_override("color", CLR_ACCENT.darkened(0.4))
 	vb.add_child(sep)
@@ -876,3 +926,62 @@ func _refresh_tex_panel(active_path: String) -> void:
 			btn.add_theme_stylebox_override("normal", sel_style)
 		else:
 			btn.remove_theme_stylebox_override("normal")
+
+
+# ── Color Tint ────────────────────────────────────────────────────────────────
+
+func _refresh_tint_picker(uid: String) -> void:
+	if _color_picker_btn == null:
+		return
+	_color_picker_btn.disabled = false
+	var room_colors: Dictionary = _params.get("room_colors", {})
+	var custom_hex: String = room_colors.get(uid, "")
+	if custom_hex.is_empty():
+		# Show the type default
+		var rtype: String = _room_types[_selected_idx] if _selected_idx >= 0 else "Utility"
+		_color_picker_btn.color = RoomData.type_color(rtype)
+		_lbl_tint_name.text = "default"
+	else:
+		_color_picker_btn.color = Color.html(custom_hex)
+		_lbl_tint_name.text = "#" + custom_hex
+
+
+func _on_tint_color_changed(color: Color) -> void:
+	if _selected_idx < 0:
+		return
+	var uid: String = _room_uids[_selected_idx]
+	var hex: String = color.to_html(false)
+
+	# Store in params so it persists for this session
+	var room_colors: Dictionary = _params.get("room_colors", {})
+	room_colors[uid] = hex
+	_params["room_colors"] = room_colors
+
+	# Update the 3D preview material
+	_apply_tint_to_container(_room_containers[_selected_idx], color)
+	_lbl_tint_name.text = "#" + hex
+
+
+func _on_reset_tint() -> void:
+	if _selected_idx < 0:
+		return
+	var uid: String = _room_uids[_selected_idx]
+
+	# Remove custom color
+	var room_colors: Dictionary = _params.get("room_colors", {})
+	room_colors.erase(uid)
+	_params["room_colors"] = room_colors
+
+	# Revert to type default
+	var rtype: String = _room_types[_selected_idx]
+	var type_clr: Color = RoomData.type_color(rtype)
+	_color_picker_btn.color = type_clr
+	_apply_tint_to_container(_room_containers[_selected_idx], type_clr)
+	_lbl_tint_name.text = "default"
+
+
+func _apply_tint_to_container(container: Node3D, color: Color) -> void:
+	var mat: StandardMaterial3D = container.get_meta("base_mat", null)
+	if mat == null:
+		return
+	mat.albedo_color = color.darkened(0.10)

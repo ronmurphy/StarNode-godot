@@ -43,9 +43,12 @@ static func room_box_size(rtype: String) -> Vector3:
 		_:          return Vector3(1.25, 0.48, 1.25)
 
 
-static func room_material(rtype: String, tex: Texture2D) -> StandardMaterial3D:
+static func room_material(rtype: String, tex: Texture2D, color_override: Color = Color(-1, -1, -1)) -> StandardMaterial3D:
 	var mat := StandardMaterial3D.new()
-	mat.albedo_color = RoomData.type_color(rtype).darkened(0.10)
+	if color_override.r < 0:
+		mat.albedo_color = RoomData.type_color(rtype).darkened(0.10)
+	else:
+		mat.albedo_color = color_override.darkened(0.10)
 	mat.metallic     = 0.55
 	mat.roughness    = 0.40
 	if tex != null:
