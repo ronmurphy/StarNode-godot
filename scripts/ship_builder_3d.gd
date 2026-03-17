@@ -133,13 +133,41 @@ static func _wars(container: Node3D, rtype: String,
 		mat: StandardMaterial3D, sz: Vector3) -> void:
 	match rtype:
 		"Command":
-			var wedge := PrismMesh.new()
-			wedge.size = Vector3(sz.x * 1.10, sz.z * 1.20, sz.y * 0.55)
-			wedge.left_to_right = 0.5
-			var wmi := add_mi(container, wedge, mat, Vector3(0.0, -sz.y * 0.18, 0.0))
-			wmi.rotation_degrees = Vector3(-90.0, 0.0, 0.0)
-			add_mi(container, box_mesh(Vector3(sz.x * 0.24, sz.y * 0.95, sz.z * 0.32)),
-				mat, Vector3(0.0, sz.y * 0.40, sz.z * 0.20))
+			# Imperial bridge tower — terraced trapezoid with viewport band + shield domes
+			# Base tier: wide hull foundation
+			var base := CylinderMesh.new()
+			base.top_radius = sz.x * 0.42;  base.bottom_radius = sz.x * 0.56
+			base.height = sz.y * 0.35;  base.radial_segments = 4
+			var bmi := add_mi(container, base, mat, Vector3(0.0, -sz.y * 0.28, sz.z * 0.05))
+			bmi.rotation_degrees = Vector3(0.0, 45.0, 0.0)
+			# Mid tier: narrower stepped section
+			var mid := CylinderMesh.new()
+			mid.top_radius = sz.x * 0.30;  mid.bottom_radius = sz.x * 0.40
+			mid.height = sz.y * 0.35;  mid.radial_segments = 4
+			var mmi := add_mi(container, mid, mat, Vector3(0.0, sz.y * 0.06, sz.z * 0.05))
+			mmi.rotation_degrees = Vector3(0.0, 45.0, 0.0)
+			# Upper tier: bridge housing
+			var upper := CylinderMesh.new()
+			upper.top_radius = sz.x * 0.22;  upper.bottom_radius = sz.x * 0.30
+			upper.height = sz.y * 0.28;  upper.radial_segments = 4
+			var umi := add_mi(container, upper, mat, Vector3(0.0, sz.y * 0.38, sz.z * 0.05))
+			umi.rotation_degrees = Vector3(0.0, 45.0, 0.0)
+			# Viewport band — thin glowing strip angled forward
+			var vp := box_mesh(Vector3(sz.x * 0.52, sz.y * 0.06, sz.z * 0.04))
+			add_mi(container, vp,
+				glow_mat(Color(0.70, 0.85, 1.00), 1.2),
+				Vector3(0.0, sz.y * 0.42, -sz.z * 0.18))
+			# Shield generator domes (the iconic twin spheres)
+			var dome := SphereMesh.new()
+			dome.radius = sz.x * 0.10;  dome.height = dome.radius * 1.3
+			dome.radial_segments = 12;  dome.rings = 6
+			for dx: float in [-sz.x * 0.16, sz.x * 0.16]:
+				add_mi(container, dome, mat, Vector3(dx, sz.y * 0.58, sz.z * 0.05))
+			# Antenna spire between domes
+			var spire := CylinderMesh.new()
+			spire.top_radius = 0.01;  spire.bottom_radius = sz.x * 0.02
+			spire.height = sz.y * 0.22;  spire.radial_segments = 4
+			add_mi(container, spire, mat, Vector3(0.0, sz.y * 0.64, sz.z * 0.05))
 		"Engines":
 			add_mi(container, box_mesh(sz), mat, Vector3.ZERO)
 			var exh := CylinderMesh.new()
