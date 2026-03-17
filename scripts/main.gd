@@ -113,28 +113,10 @@ func _e(emoji: String, text: String) -> String:
 func _setup_display_scale() -> void:
 	# Desktop: project.godot sets mode=2 (maximized) and stretch=canvas_items
 	# so Godot scales the 1280x800 viewport to fill the window automatically.
-	# We do NOT touch content_scale_factor on desktop — doing so shrinks the
-	# virtual viewport below 1280px and clips the header buttons.
-	#
-	# Web: the browser canvas is sized in CSS pixels. On a 2K tablet with
-	# devicePixelRatio=2 the CSS viewport may only be ~800px wide, making
-	# everything appear tiny. We apply a gentle boost only when dpr > 1.3.
-	if not OS.has_feature("web"):
-		return
-
-	var dpr = JavaScriptBridge.eval("window.devicePixelRatio || 1.0")
-	dpr = clampf(float(dpr), 1.0, 4.0)
-
-	# Only intervene on genuine HiDPI displays (tablets, Retina, 2K+).
-	# Standard 1x browser screens look fine with stretch mode alone.
-	if dpr <= 1.3:
-		return
-
-	# Scale proportionally to dpr, but stay conservative so the UI doesn't
-	# overflow on smaller tablet viewport widths.
-	# dpr 1.5 -> ~1.03x  |  dpr 2.0 -> ~1.05x  |  dpr 3.0 -> ~1.10x
-	var scale := clampf(1.0 + (dpr - 1.0) * 0.05, 1.0, 1.12)
-	get_window().content_scale_factor = scale
+	# Web: let the browser handle DPI scaling — tablet browsers report high
+	# devicePixelRatio but have narrow CSS viewports, so any additional
+	# content_scale_factor causes the header to overflow off-screen.
+	pass
 
 
 # ── Build UI ─────────────────────────────────────────────────────────────────
@@ -309,6 +291,270 @@ const CREW_MARKER_COLORS := {
 	"river":   Color(0.30, 0.85, 0.85),  # teal
 	"fluffy":  Color(0.70, 0.70, 0.70),  # neutral grey
 }
+
+
+func _show_vn_dialog(steps: Array, on_done: Callable = Callable()) -> void:
+	## Visual-novel style multi-step dialogue. Each step: { "speaker": "crew_id", "text": "..." }
+	## Special speaker "captain" shows italic text with no portrait.
+	## Click/tap anywhere or press Enter/Space to advance. Calls on_done after last step.
+	if steps.is_empty():
+		if on_done.is_valid():
+			on_done.call()
+		return
+
+	var vp_size := get_viewport().get_visible_rect().size
+	var overlay := Control.new()
+	overlay.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	overlay.z_index = 100
+	overlay.mouse_filter = Control.MOUSE_FILTER_STOP
+	add_child(overlay)
+
+	# Dark background
+	var bg := ColorRect.new()
+	bg.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	bg.color = Color(0.02, 0.03, 0.06, 0.85)
+	bg.mouse_filter = Control.MOUSE_FILTER_STOP
+	overlay.add_child(bg)
+
+	# Bottom bar panel — anchored to bottom, ~35% height
+	var bar_h := vp_size.y * 0.35
+	var panel := PanelContainer.new()
+	var ps := StyleBoxFlat.new()
+	ps.bg_color = Color(0.05, 0.07, 0.12, 0.96)
+	ps.border_color = Color(0.25, 0.35, 0.55, 0.6)
+	ps.border_width_top = 2
+	ps.border_width_bottom = 0
+	ps.border_width_left = 0
+	ps.border_width_right = 0
+	ps.set_content_margin_all(16)
+	panel.add_theme_stylebox_override("panel", ps)
+	panel.position = Vector2(0, vp_size.y - bar_h)
+	panel.size = Vector2(vp_size.x, bar_h)
+	overlay.add_child(panel)
+
+	var hb := HBoxContainer.new()
+	hb.add_theme_constant_override("separation", 16)
+	panel.add_child(hb)
+
+	# Portrait area (left)
+	var portrait_vb := VBoxContainer.new()
+	portrait_vb.add_theme_constant_override("separation", 4)
+	portrait_vb.custom_minimum_size.x = 210
+	hb.add_child(portrait_vb)
+
+	var lbl_speaker := Label.new()
+	lbl_speaker.add_theme_font_size_override("font_size", 14)
+	lbl_speaker.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	portrait_vb.add_child(lbl_speaker)
+
+	var portrait := TextureRect.new()
+	portrait.custom_minimum_size = Vector2(200, 280)
+	portrait.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+	portrait.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+	portrait.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
+	portrait.size_flags_vertical = Control.SIZE_SHRINK_BEGIN
+	portrait_vb.add_child(portrait)
+
+	# Speech area (right)
+	var speech_vb := VBoxContainer.new()
+	speech_vb.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	speech_vb.add_theme_constant_override("separation", 8)
+	hb.add_child(speech_vb)
+
+	var speech := RichTextLabel.new()
+	speech.bbcode_enabled = true
+	speech.fit_content = true
+	speech.scroll_active = false
+	speech.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	speech.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	speech.add_theme_font_size_override("normal_font_size", 13)
+	speech.add_theme_color_override("default_color", Color(0.80, 0.85, 0.95, 1.0))
+	speech_vb.add_child(speech)
+
+	# "Click to continue" hint at bottom-right
+	var hint_lbl := Label.new()
+	hint_lbl.text = "Click to continue..."
+	hint_lbl.add_theme_font_size_override("font_size", 10)
+	hint_lbl.add_theme_color_override("font_color", Color(0.50, 0.55, 0.65, 0.7))
+	hint_lbl.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
+	hint_lbl.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	speech_vb.add_child(hint_lbl)
+
+	# Step index tracking
+	var state := { "idx": 0 }
+	var _steps := steps
+	var _on_done := on_done
+	var _overlay := overlay
+
+	# Update display for current step
+	var _update_step: Callable
+	_update_step = func() -> void:
+		var step: Dictionary = _steps[state.idx]
+		var speaker_id: String = step.get("speaker", "captain") as String
+		var txt: String = step.get("text", "") as String
+
+		if speaker_id == "captain":
+			lbl_speaker.text = "Captain"
+			lbl_speaker.add_theme_color_override("font_color", Color(0.90, 0.90, 0.95, 1.0))
+			portrait.texture = null
+			portrait.visible = false
+			speech.text = "[i][color=#99aabb]%s[/color][/i]" % txt
+		else:
+			var display_name: String = CREW_DISPLAY_NAMES.get(speaker_id, speaker_id.capitalize())
+			var accent: Color = CREW_MARKER_COLORS.get(speaker_id, CLR_ACCENT)
+			lbl_speaker.text = display_name
+			lbl_speaker.add_theme_color_override("font_color", accent)
+			portrait.visible = true
+			var p_path: String = CREW_PORTRAITS.get(speaker_id, "")
+			if not p_path.is_empty() and ResourceLoader.exists(p_path):
+				portrait.texture = load(p_path)
+			else:
+				portrait.texture = null
+			speech.text = "[color=#c8d0e0]%s[/color]" % txt
+
+		# Update hint on last step
+		if state.idx >= _steps.size() - 1:
+			hint_lbl.text = "Click to finish."
+
+	_update_step.call()
+
+	# Advance handler
+	var _advance: Callable
+	_advance = func() -> void:
+		state.idx += 1
+		if state.idx >= _steps.size():
+			_overlay.queue_free()
+			if _on_done.is_valid():
+				_on_done.call()
+		else:
+			_update_step.call()
+
+	# Click anywhere on overlay to advance
+	bg.gui_input.connect(func(event: InputEvent) -> void:
+		if event is InputEventMouseButton and event.pressed and event.button_index == MOUSE_BUTTON_LEFT:
+			_advance.call()
+	)
+	panel.gui_input.connect(func(event: InputEvent) -> void:
+		if event is InputEventMouseButton and event.pressed and event.button_index == MOUSE_BUTTON_LEFT:
+			_advance.call()
+	)
+
+	# Also handle keyboard (Enter / Space)
+	overlay.set_process_unhandled_key_input(true)
+	overlay.ready.connect(func() -> void:
+		overlay.set_script(null)
+	)
+	# Use a simple input handler on the overlay
+	var _input_handler := func(event: InputEvent) -> void:
+		if event is InputEventKey and event.pressed:
+			if event.keycode == KEY_ENTER or event.keycode == KEY_SPACE or event.keycode == KEY_KP_ENTER:
+				_advance.call()
+				get_viewport().set_input_as_handled()
+	overlay.gui_input.connect(_input_handler)
+
+
+func _show_mission_accept_panel(mission: Dictionary, crew_id: String, is_percy: bool = false) -> void:
+	## Compact mission details + Accept/Decline card shown after VN dialogue.
+	var loc_sys := StarMapData.find_system(mission.location as String)
+	var loc_name: String = loc_sys.get("name", "Unknown") as String
+	var accent: Color = CREW_MARKER_COLORS.get(crew_id, CLR_ACCENT)
+	var mission_id: String = mission.id as String
+
+	# Close captain's log so the card is on top
+	if _log_overlay and is_instance_valid(_log_overlay):
+		_log_overlay.queue_free()
+		_log_overlay = null
+
+	var overlay := Control.new()
+	overlay.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	overlay.z_index = 100
+	overlay.mouse_filter = Control.MOUSE_FILTER_STOP
+	add_child(overlay)
+
+	var bg := ColorRect.new()
+	bg.color = Color(0.02, 0.03, 0.06, 0.85)
+	bg.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	bg.mouse_filter = Control.MOUSE_FILTER_STOP
+	overlay.add_child(bg)
+
+	var panel := PanelContainer.new()
+	var ps := StyleBoxFlat.new()
+	ps.bg_color = Color(0.06, 0.08, 0.14, 0.98)
+	ps.border_color = accent.lerp(Color.WHITE, 0.15)
+	ps.border_color.a = 0.8
+	ps.set_border_width_all(2)
+	ps.set_corner_radius_all(8)
+	ps.set_content_margin_all(20)
+	panel.add_theme_stylebox_override("panel", ps)
+	panel.set_anchors_and_offsets_preset(Control.PRESET_CENTER)
+	panel.offset_left = -240
+	panel.offset_right = 240
+	panel.offset_top = -100
+	panel.offset_bottom = 100
+	overlay.add_child(panel)
+
+	var vb := VBoxContainer.new()
+	vb.add_theme_constant_override("separation", 10)
+	panel.add_child(vb)
+
+	# Title
+	var lbl_title := Label.new()
+	lbl_title.text = mission.title as String
+	lbl_title.add_theme_font_size_override("font_size", 15)
+	lbl_title.add_theme_color_override("font_color", accent)
+	lbl_title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	vb.add_child(lbl_title)
+
+	# Details line
+	var details := Label.new()
+	details.text = "%s  |  ~%d days  |  Reward: %d cr" % [
+		loc_name, mission.days as int, mission.reward as int]
+	details.add_theme_font_size_override("font_size", 11)
+	details.add_theme_color_override("font_color", Color(0.90, 0.85, 0.55, 1.0))
+	details.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	vb.add_child(details)
+
+	# Description
+	var desc := Label.new()
+	desc.text = mission.desc as String
+	desc.add_theme_font_size_override("font_size", 10)
+	desc.add_theme_color_override("font_color", CLR_DIM)
+	desc.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	desc.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	vb.add_child(desc)
+
+	# Accept / Decline
+	var btn_row := HBoxContainer.new()
+	btn_row.add_theme_constant_override("separation", 10)
+	btn_row.alignment = BoxContainer.ALIGNMENT_CENTER
+	vb.add_child(btn_row)
+
+	var btn_accept := Button.new()
+	btn_accept.text = "Accept Mission"
+	btn_accept.custom_minimum_size = Vector2(140, 32)
+	btn_accept.add_theme_font_size_override("font_size", 12)
+	btn_accept.add_theme_color_override("font_color", Color(0.40, 0.95, 0.55, 1.0))
+	btn_accept.pressed.connect(func() -> void:
+		overlay.queue_free()
+		if is_percy:
+			_active_percy_mission = mission_id
+			_launch_percy_mission()
+		else:
+			_active_crew_mission = mission_id
+			_launch_crew_mission()
+	)
+	btn_row.add_child(btn_accept)
+
+	var btn_decline := Button.new()
+	btn_decline.text = "Not Now"
+	btn_decline.custom_minimum_size = Vector2(100, 32)
+	btn_decline.add_theme_font_size_override("font_size", 11)
+	btn_decline.add_theme_color_override("font_color", Color(0.65, 0.55, 0.55, 1.0))
+	btn_decline.pressed.connect(func() -> void:
+		overlay.queue_free()
+		_show_captains_log_chart()
+	)
+	btn_row.add_child(btn_decline)
 
 
 func _show_crew_hint(crew_id: String, message: String, on_dismiss: Callable = Callable()) -> void:
@@ -1382,123 +1628,19 @@ func _show_percy_mission_dialog(mission_id: String) -> void:
 	var m := StarMapData.find_percy_mission(mission_id)
 	if m.is_empty():
 		return
-	var loc_sys := StarMapData.find_system(m.location as String)
-	var loc_name: String = loc_sys.get("name", "Unknown") as String
 
 	# Close captain's log so the dialog is on top
 	if _log_overlay and is_instance_valid(_log_overlay):
 		_log_overlay.queue_free()
 		_log_overlay = null
 
-	var overlay := Control.new()
-	overlay.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
-	overlay.z_index = 70
-	overlay.mouse_filter = Control.MOUSE_FILTER_STOP
-	add_child(overlay)
+	# Use multi-step VN dialogue if available, fall back to single-step from percy_msg
+	var steps: Array = m.get("dialogue", [])
+	if steps.is_empty():
+		steps = [{ "speaker": "percy", "text": m.percy_msg as String }]
 
-	var bg := ColorRect.new()
-	bg.color = Color(0.02, 0.03, 0.06, 0.85)
-	bg.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
-	overlay.add_child(bg)
-
-	var panel := PanelContainer.new()
-	var ps := StyleBoxFlat.new()
-	ps.bg_color = Color(0.06, 0.08, 0.14, 0.98)
-	ps.border_color = Color(0.90, 0.50, 0.15, 0.8)
-	ps.set_border_width_all(2)
-	ps.set_corner_radius_all(8)
-	ps.set_content_margin_all(16)
-	panel.add_theme_stylebox_override("panel", ps)
-	panel.set_anchors_and_offsets_preset(Control.PRESET_CENTER)
-	panel.offset_left = -290
-	panel.offset_right = 290
-	panel.offset_top = -160
-	panel.offset_bottom = 160
-	overlay.add_child(panel)
-
-	var vb := VBoxContainer.new()
-	vb.add_theme_constant_override("separation", 8)
-	panel.add_child(vb)
-
-	# Percy portrait + message
-	var hb := HBoxContainer.new()
-	hb.add_theme_constant_override("separation", 12)
-	vb.add_child(hb)
-
-	var portrait := TextureRect.new()
-	var tex := load(CREW_PORTRAITS.percy)
-	if tex:
-		portrait.texture = tex
-	portrait.expand_mode  = TextureRect.EXPAND_IGNORE_SIZE
-	portrait.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
-	portrait.custom_minimum_size = Vector2(120, 160)
-	portrait.size_flags_horizontal = Control.SIZE_SHRINK_BEGIN
-	portrait.size_flags_vertical = Control.SIZE_SHRINK_BEGIN
-	hb.add_child(portrait)
-
-	var speech_vb := VBoxContainer.new()
-	speech_vb.add_theme_constant_override("separation", 4)
-	speech_vb.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	hb.add_child(speech_vb)
-
-	var lbl_name := Label.new()
-	lbl_name.text = "Commander Percy"
-	lbl_name.add_theme_font_size_override("font_size", 12)
-	lbl_name.add_theme_color_override("font_color", Color(0.95, 0.50, 0.15, 1.0))
-	speech_vb.add_child(lbl_name)
-
-	var speech := RichTextLabel.new()
-	speech.bbcode_enabled = true
-	speech.fit_content = true
-	speech.scroll_active = false
-	speech.text = m.percy_msg as String
-	speech.add_theme_font_size_override("normal_font_size", 11)
-	speech.add_theme_color_override("default_color", Color(0.75, 0.80, 0.90, 1.0))
-	speech_vb.add_child(speech)
-
-	# Mission details
-	var details := Label.new()
-	details.text = "[ %s ]  --  %s  |  ~%d days  |  Reward: %d cr" % [
-		m.title, loc_name, m.days as int, m.reward as int]
-	details.add_theme_font_size_override("font_size", 11)
-	details.add_theme_color_override("font_color", Color(0.90, 0.85, 0.55, 1.0))
-	details.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	vb.add_child(details)
-
-	var desc := Label.new()
-	desc.text = m.desc as String
-	desc.add_theme_font_size_override("font_size", 10)
-	desc.add_theme_color_override("font_color", CLR_DIM)
-	desc.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-	desc.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	vb.add_child(desc)
-
-	# Accept / Decline
-	var btn_row := HBoxContainer.new()
-	btn_row.add_theme_constant_override("separation", 10)
-	btn_row.alignment = BoxContainer.ALIGNMENT_CENTER
-	vb.add_child(btn_row)
-
-	var btn_accept := Button.new()
-	btn_accept.text = "Accept Mission"
-	btn_accept.custom_minimum_size = Vector2(140, 32)
-	btn_accept.add_theme_font_size_override("font_size", 12)
-	btn_accept.add_theme_color_override("font_color", Color(0.40, 0.95, 0.55, 1.0))
-	btn_accept.pressed.connect(func() -> void:
-		_active_percy_mission = mission_id
-		overlay.queue_free()
-		_launch_percy_mission())
-	btn_row.add_child(btn_accept)
-
-	var btn_decline := Button.new()
-	btn_decline.text = "Not Now"
-	btn_decline.custom_minimum_size = Vector2(100, 32)
-	btn_decline.add_theme_font_size_override("font_size", 11)
-	btn_decline.add_theme_color_override("font_color", Color(0.65, 0.55, 0.55, 1.0))
-	btn_decline.pressed.connect(func() -> void:
-		overlay.queue_free()
-		_show_captains_log_chart())
-	btn_row.add_child(btn_decline)
+	_show_vn_dialog(steps, func():
+		_show_mission_accept_panel(m, "percy", true))
 
 
 func _launch_percy_mission() -> void:
@@ -1526,123 +1668,19 @@ func _show_crew_mission_dialog(mission_id: String) -> void:
 	if m.is_empty():
 		return
 	var crew_id: String = m.crew as String
-	var loc_sys := StarMapData.find_system(m.location as String)
-	var loc_name: String = loc_sys.get("name", "Unknown") as String
-	var accent: Color = CREW_MARKER_COLORS.get(crew_id, CLR_ACCENT)
-	var display_name: String = CREW_DISPLAY_NAMES.get(crew_id, "Unknown")
-	var portrait_path: String = CREW_PORTRAITS.get(crew_id, CREW_PORTRAITS.percy)
 
 	# Close captain's log so the dialog is on top
 	if _log_overlay and is_instance_valid(_log_overlay):
 		_log_overlay.queue_free()
 		_log_overlay = null
 
-	var overlay := Control.new()
-	overlay.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
-	overlay.z_index = 70
-	overlay.mouse_filter = Control.MOUSE_FILTER_STOP
-	add_child(overlay)
+	# Use multi-step VN dialogue if available, fall back to single-step from crew_msg
+	var steps: Array = m.get("dialogue", [])
+	if steps.is_empty():
+		steps = [{ "speaker": crew_id, "text": m.crew_msg as String }]
 
-	var bg := ColorRect.new()
-	bg.color = Color(0.02, 0.03, 0.06, 0.85)
-	bg.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
-	overlay.add_child(bg)
-
-	var panel := PanelContainer.new()
-	var ps := StyleBoxFlat.new()
-	ps.bg_color = Color(0.06, 0.08, 0.14, 0.98)
-	ps.border_color = accent.lerp(Color.WHITE, 0.15)
-	ps.border_color.a = 0.8
-	ps.set_border_width_all(2)
-	ps.set_corner_radius_all(8)
-	ps.set_content_margin_all(16)
-	panel.add_theme_stylebox_override("panel", ps)
-	panel.set_anchors_and_offsets_preset(Control.PRESET_CENTER)
-	panel.offset_left = -290
-	panel.offset_right = 290
-	panel.offset_top = -160
-	panel.offset_bottom = 160
-	overlay.add_child(panel)
-
-	var vb := VBoxContainer.new()
-	vb.add_theme_constant_override("separation", 8)
-	panel.add_child(vb)
-
-	var hb := HBoxContainer.new()
-	hb.add_theme_constant_override("separation", 12)
-	vb.add_child(hb)
-
-	var portrait := TextureRect.new()
-	if ResourceLoader.exists(portrait_path):
-		portrait.texture = load(portrait_path)
-	portrait.expand_mode  = TextureRect.EXPAND_IGNORE_SIZE
-	portrait.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
-	portrait.custom_minimum_size = Vector2(120, 160)
-	portrait.size_flags_horizontal = Control.SIZE_SHRINK_BEGIN
-	portrait.size_flags_vertical = Control.SIZE_SHRINK_BEGIN
-	hb.add_child(portrait)
-
-	var speech_vb := VBoxContainer.new()
-	speech_vb.add_theme_constant_override("separation", 4)
-	speech_vb.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	hb.add_child(speech_vb)
-
-	var lbl_name := Label.new()
-	lbl_name.text = display_name
-	lbl_name.add_theme_font_size_override("font_size", 12)
-	lbl_name.add_theme_color_override("font_color", accent)
-	speech_vb.add_child(lbl_name)
-
-	var speech := RichTextLabel.new()
-	speech.bbcode_enabled = true
-	speech.fit_content = true
-	speech.scroll_active = false
-	speech.text = m.crew_msg as String
-	speech.add_theme_font_size_override("normal_font_size", 11)
-	speech.add_theme_color_override("default_color", Color(0.75, 0.80, 0.90, 1.0))
-	speech_vb.add_child(speech)
-
-	var details := Label.new()
-	details.text = "[ %s ]  --  %s  |  ~%d days  |  Reward: %d cr" % [
-		m.title, loc_name, m.days as int, m.reward as int]
-	details.add_theme_font_size_override("font_size", 11)
-	details.add_theme_color_override("font_color", accent.lightened(0.3))
-	details.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	vb.add_child(details)
-
-	var desc := Label.new()
-	desc.text = m.desc as String
-	desc.add_theme_font_size_override("font_size", 10)
-	desc.add_theme_color_override("font_color", CLR_DIM)
-	desc.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-	desc.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	vb.add_child(desc)
-
-	var btn_row := HBoxContainer.new()
-	btn_row.add_theme_constant_override("separation", 10)
-	btn_row.alignment = BoxContainer.ALIGNMENT_CENTER
-	vb.add_child(btn_row)
-
-	var btn_accept := Button.new()
-	btn_accept.text = "Accept Mission"
-	btn_accept.custom_minimum_size = Vector2(140, 32)
-	btn_accept.add_theme_font_size_override("font_size", 12)
-	btn_accept.add_theme_color_override("font_color", Color(0.40, 0.95, 0.55, 1.0))
-	btn_accept.pressed.connect(func() -> void:
-		_active_crew_mission = mission_id
-		overlay.queue_free()
-		_launch_crew_mission())
-	btn_row.add_child(btn_accept)
-
-	var btn_decline := Button.new()
-	btn_decline.text = "Not Now"
-	btn_decline.custom_minimum_size = Vector2(100, 32)
-	btn_decline.add_theme_font_size_override("font_size", 11)
-	btn_decline.add_theme_color_override("font_color", Color(0.65, 0.55, 0.55, 1.0))
-	btn_decline.pressed.connect(func() -> void:
-		overlay.queue_free()
-		_show_captains_log_chart())
-	btn_row.add_child(btn_decline)
+	_show_vn_dialog(steps, func():
+		_show_mission_accept_panel(m, crew_id, false))
 
 
 func _launch_crew_mission() -> void:
@@ -2757,10 +2795,11 @@ func _on_job_finished(result: Dictionary) -> void:
 			_toast("Mission complete! New systems charted: %s" % ", ".join(names))
 		var _result := result
 		var _wages := wages
-		_show_crew_hint("percy",
-			"\"Outstanding work, Captain. The data we recovered will " +
-			"change everything. Stand by — I'll have new orders soon.\"",
-			func(): _open_port_after_job(_result, _wages))
+		# Use VN debrief if available, fall back to generic hint
+		var debrief_steps: Array = pm.get("debrief", [])
+		if debrief_steps.is_empty():
+			debrief_steps = [{ "speaker": "percy", "text": "Outstanding work, Captain. The data we recovered will change everything. Stand by — I'll have new orders soon." }]
+		_show_vn_dialog(debrief_steps, func(): _open_port_after_job(_result, _wages))
 		return
 
 	# ── Crew mission completion ──
@@ -2784,10 +2823,11 @@ func _on_job_finished(result: Dictionary) -> void:
 		var display_name: String = CREW_DISPLAY_NAMES.get(crew_id, "Unknown")
 		var _result := result
 		var _wages := wages
-		_show_crew_hint(crew_id,
-			"\"That was something, Captain. %s reporting mission complete. " % display_name +
-			"I'll let you know if anything else comes up.\"",
-			func(): _open_port_after_job(_result, _wages))
+		# Use VN debrief if available, fall back to generic hint
+		var debrief_steps: Array = cm.get("debrief", [])
+		if debrief_steps.is_empty():
+			debrief_steps = [{ "speaker": crew_id, "text": "That was something, Captain. %s reporting mission complete. I'll let you know if anything else comes up." % display_name }]
+		_show_vn_dialog(debrief_steps, func(): _open_port_after_job(_result, _wages))
 		return
 
 	# ── Mission nudges — notify if a new mission became available ──
