@@ -83,7 +83,7 @@ func pick_destination(days: int, current_id: String, discovered: Array = []) -> 
 					all_others.append(s)
 		all_others.sort_custom(func(a: Dictionary, b: Dictionary) -> bool:
 			return abs(current_pos.distance_to(a.pos) - target_dist) \
-			     < abs(current_pos.distance_to(b.pos) - target_dist))
+				 < abs(current_pos.distance_to(b.pos) - target_dist))
 		return all_others[0] if not all_others.is_empty() else SYSTEMS[1]
 
 	return candidates[randi() % candidates.size()]
@@ -284,7 +284,7 @@ const PERCY_MISSIONS: Array = [
 		"percy_msg": "\"The flight recorder data is clear — that ship came from deep inside Cygnus Reach. The nebula will mess with our comms, but we need to see what's out there. This is getting bigger than I expected.\"",
 		"days":     16,
 		"reward":   2000,
-		"on_complete_discover": ["deneb", "hadley", "scylla"],
+		"on_complete_discover": ["deneb", "hadley", "scylla", "frontier"],
 	},
 	{
 		"id":       "percy_05_frontier_contact",
