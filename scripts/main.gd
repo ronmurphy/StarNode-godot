@@ -23,6 +23,7 @@ var _sy_txt_search: LineEdit
 var _sy_shape_preview: RoomShapePreview
 var _sy_lbl_credits: Label
 var _return_to_port_after_shipyard: bool = false  # reopen port when shipyard closes
+var _shipyard_price_mult: float = 1.0            # location price multiplier for current port
 
 # ── Game state ───────────────────────────────────────────────────────────────
 var ship_name: String = "My Ship"
@@ -390,6 +391,7 @@ func _show_crew_hint(crew_id: String, message: String, on_dismiss: Callable = Ca
 func _show_shipyard(show_intro: bool, inventory: Array = []) -> void:
 	if _shipyard_popup and is_instance_valid(_shipyard_popup):
 		return  # already open
+	_shipyard_price_mult = StarMapData.get_price_multiplier(_current_system)
 
 	var popup := Control.new()
 	popup.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
@@ -632,8 +634,9 @@ func _sy_refresh_room_list(inventory: Array = []) -> void:
 	_sy_lst_rooms.clear()
 	for room in _filtered_rooms:
 		var type_color: Color = RoomData.type_color(room.type)
-		var affordable: bool = credits >= room.cost
-		var label: String = "%s  (%d cr)" % [room.name, room.cost]
+		var room_adj_cost := int(float(room.cost) * _shipyard_price_mult)
+		var affordable: bool = credits >= room_adj_cost
+		var label: String = "%s  (%d cr)" % [room.name, room_adj_cost]
 		_sy_lst_rooms.add_item(label, null, true)
 		var idx := _sy_lst_rooms.item_count - 1
 		_sy_lst_rooms.set_item_custom_fg_color(idx,
@@ -647,10 +650,13 @@ func _sy_on_room_selected(index: int) -> void:
 	_sy_shape_preview.set_room(def)
 	var pwr_color: String = "#4fdf8c" if def.power >= 0 else "#df6650"
 	var pwr_str: String = RoomData.power_label(def.power)
+	var adj_cost := int(float(def.cost) * _shipyard_price_mult)
+	var mult_note := "" if _shipyard_price_mult <= 1.0 else \
+		"  [color=#ff8844](%s %.0fx)[/color]" % [StarMapData.get_price_tier_name(_current_system), _shipyard_price_mult]
 	_sy_lbl_detail.text = (
 		"[b][color=#c8d8ff]%s[/color][/b]\n" % def.name +
 		"[color=#7090b0]%s  ·  %s[/color]\n" % [def.type, def.universe] +
-		"Cost: [color=#ffd050]%d[/color] cr   Power: [color=%s]%s[/color]\n" % [def.cost, pwr_color, pwr_str] +
+		"Cost: [color=#ffd050]%d[/color] cr%s   Power: [color=%s]%s[/color]\n" % [adj_cost, mult_note, pwr_color, pwr_str] +
 		"Durability: %d\n\n" % def.durability +
 		"[color=#9090aa]%s[/color]" % def.desc
 	)
@@ -662,9 +668,10 @@ func _sy_buy_room(inventory: Array = []) -> void:
 		_toast("Select a room from the list first.")
 		return
 	var def: Dictionary = _filtered_rooms[sel[0]]
+	var adj_cost := int(float(def.cost) * _shipyard_price_mult)
 
-	if credits < def.cost:
-		_toast("Not enough credits! Need %d, have %d." % [def.cost, credits])
+	if credits < adj_cost:
+		_toast("Not enough credits! Need %d, have %d." % [adj_cost, credits])
 		return
 
 	_node_counter += 1
@@ -681,7 +688,7 @@ func _sy_buy_room(inventory: Array = []) -> void:
 	ship_node.position_offset = Vector2(cx + randf_range(-80, 80), cy + randf_range(-60, 60))
 	ship_node.hull_pos = _next_hull_slot()
 
-	credits -= def.cost
+	credits -= adj_cost
 	_room_textures[uid] = ROOM_TEXTURES[randi() % ROOM_TEXTURES.size()]
 
 	# Fresh ship: auto-assign one starter crew member per room
@@ -855,6 +862,52 @@ func _all_nodes() -> Array:
 	return result
 
 
+func _calc_engine_tier() -> int:
+	## Returns max speed multiplier based on total Engine-type room cost.
+	## <600 = 2x, 600+ = 4x, 1200+ = 6x, 2000+ = 8x.
+	var total_engine_cost := 0
+	for child in graph_edit.get_children():
+		var sn := child as ShipNode
+		if sn == null:
+			continue
+		var def := RoomData.find(sn.def_id)
+		if def.get("type", "") == "Engines":
+			total_engine_cost += def.get("cost", 0)
+	if total_engine_cost >= 2000:
+		return 8
+	if total_engine_cost >= 1200:
+		return 6
+	if total_engine_cost >= 600:
+		return 4
+	return 2
+
+
+func _calc_cargo_grade() -> int:
+	## Returns bonus columns for cargo puzzle based on avg Utility room cost.
+	## <250 = +0, 250+ = +1, 500+ = +2, 800+ = +3.
+	var costs: Array = []
+	for child in graph_edit.get_children():
+		var sn := child as ShipNode
+		if sn == null:
+			continue
+		var def := RoomData.find(sn.def_id)
+		if def.get("type", "") == "Utility":
+			costs.append(def.get("cost", 0))
+	if costs.is_empty():
+		return 0
+	var avg: float = 0.0
+	for c in costs:
+		avg += c
+	avg /= costs.size()
+	if avg >= 800:
+		return 3
+	if avg >= 500:
+		return 2
+	if avg >= 250:
+		return 1
+	return 0
+
+
 # ── Header label clicks ──────────────────────────────────────────────────────
 func _on_location_click() -> void:
 	if _jobs_completed > 0:
@@ -888,6 +941,7 @@ func _open_port_menu(tab: String = "summary") -> void:
 		"ship_nodes":     _all_nodes(),
 		"room_textures":  _room_textures,
 		"start_tab":      tab,
+		"price_mult":     StarMapData.get_price_multiplier(_current_system),
 	})
 	add_child(port)
 	port.port_closed.connect(_on_port_closed)
@@ -2438,7 +2492,7 @@ func _count_cargo_holds() -> int:
 func _show_cargo_puzzle(job: Dictionary) -> void:
 	var cargo_count: int = _count_cargo_holds()
 	var puzzle := CargoPuzzle.new()
-	puzzle.setup(cargo_count, job.pay_per_day, job.total_pay, job.job_type)
+	puzzle.setup(cargo_count, job.pay_per_day, job.total_pay, job.job_type, _calc_cargo_grade())
 	puzzle.puzzle_done.connect(func(bonus: int) -> void:
 		puzzle.queue_free()
 		_cargo_puzzle = null
@@ -2475,6 +2529,7 @@ func _launch_flight(job: Dictionary, cargo_bonus: int) -> void:
 		"discovered":      _discovered_systems,
 		"is_percy":        job.get("is_percy", false),
 		"is_crew_mission": job.get("is_crew_mission", false),
+		"max_speed":       _calc_engine_tier(),
 	})
 	add_child(star_map)
 	star_map.job_finished.connect(_on_job_finished)
@@ -2670,6 +2725,7 @@ func _open_port_after_job(result: Dictionary, wages: int) -> void:
 		"wages":          wages,
 		"ship_nodes":     _all_nodes(),
 		"room_textures":  _room_textures,
+		"price_mult":     StarMapData.get_price_multiplier(_current_system),
 	})
 	add_child(port)
 	port.port_closed.connect(_on_port_closed)

@@ -3,15 +3,27 @@
 	"active_percy_mission": "",
 	"connections": [
 		{
-			"from": "node_5",
+			"from": "_GraphNode_1559",
 			"from_port": 0,
-			"to": "_GraphNode_1541",
+			"to": "node_9",
 			"to_port": 0
 		},
 		{
 			"from": "_GraphNode_1541",
 			"from_port": 0,
-			"to": "node_6",
+			"to": "_GraphNode_1550",
+			"to_port": 0
+		},
+		{
+			"from": "_GraphNode_1541",
+			"from_port": 0,
+			"to": "node_5",
+			"to_port": 0
+		},
+		{
+			"from": "node_5",
+			"from_port": 0,
+			"to": "node_8",
 			"to_port": 0
 		},
 		{
@@ -21,32 +33,74 @@
 			"to_port": 0
 		},
 		{
-			"from": "_GraphNode_1550",
-			"from_port": 0,
-			"to": "node_7",
-			"to_port": 0
-		},
-		{
 			"from": "node_7",
 			"from_port": 0,
 			"to": "node_4",
 			"to_port": 0
 		},
 		{
-			"from": "node_4",
+			"from": "node_10",
 			"from_port": 0,
-			"to": "node_8",
+			"to": "node_7",
+			"to_port": 0
+		},
+		{
+			"from": "node_6",
+			"from_port": 0,
+			"to": "_GraphNode_1541",
+			"to_port": 0
+		},
+		{
+			"from": "node_10",
+			"from_port": 0,
+			"to": "node_6",
+			"to_port": 0
+		},
+		{
+			"from": "node_9",
+			"from_port": 0,
+			"to": "node_11",
+			"to_port": 0
+		},
+		{
+			"from": "node_16",
+			"from_port": 0,
+			"to": "_GraphNode_1541",
+			"to_port": 0
+		},
+		{
+			"from": "node_6",
+			"from_port": 0,
+			"to": "node_16",
 			"to_port": 0
 		},
 		{
 			"from": "node_8",
 			"from_port": 0,
-			"to": "node_5",
+			"to": "node_12",
+			"to_port": 0
+		},
+		{
+			"from": "node_12",
+			"from_port": 0,
+			"to": "node_13",
+			"to_port": 0
+		},
+		{
+			"from": "node_4",
+			"from_port": 0,
+			"to": "node_15",
+			"to_port": 0
+		},
+		{
+			"from": "node_15",
+			"from_port": 0,
+			"to": "node_14",
 			"to_port": 0
 		}
 	],
-	"counter": 8,
-	"credits": 25083,
+	"counter": 16,
+	"credits": 39208,
 	"crew": [
 		{
 			"assigned_to": "node_1",
@@ -57,82 +111,98 @@
 			"role": "Technician",
 			"shore_leave_days": 0.0,
 			"status": "active",
-			"trips": 16
+			"trips": 26
 		},
 		{
 			"assigned_to": "node_2",
-			"efficiency": 0.94,
+			"efficiency": 1.0,
 			"id": "crew_5",
 			"name": "Vash Jorik",
 			"portrait": "res://assets/pictures/profiles/alien_gaseous.png",
 			"role": "Engineer",
 			"shore_leave_days": 0.0,
 			"status": "active",
-			"trips": 15
+			"trips": 25
 		},
 		{
 			"assigned_to": "node_3",
-			"efficiency": 0.92,
+			"efficiency": 1.0,
 			"id": "crew_6",
 			"name": "Kova Nexis",
 			"portrait": "res://assets/pictures/profiles/space_dog_terrier.png",
 			"role": "Officer",
 			"shore_leave_days": 0.0,
 			"status": "active",
-			"trips": 15
+			"trips": 25
 		},
 		{
 			"assigned_to": "node_6",
-			"efficiency": 0.84,
+			"efficiency": 0.89,
 			"id": "crew_7",
 			"name": "Kira Jorik",
 			"portrait": "res://assets/pictures/profiles/alien_luminar.png",
 			"role": "Engineer",
 			"shore_leave_days": 0.0,
 			"status": "active",
-			"trips": 8
+			"trips": 18
 		},
 		{
 			"assigned_to": "node_5",
-			"efficiency": 0.98,
+			"efficiency": 1.0,
 			"id": "crew_8",
 			"name": "Hex Rynn",
 			"portrait": "res://assets/pictures/profiles/human_male.png",
 			"role": "Security",
 			"shore_leave_days": 0.0,
 			"status": "active",
-			"trips": 8
+			"trips": 18
 		},
 		{
 			"assigned_to": "node_8",
-			"efficiency": 0.78,
+			"efficiency": 0.879477710752577,
 			"id": "crew_9",
 			"name": "Lyra Rynn",
 			"portrait": "res://assets/pictures/profiles/alien_insectoid.png",
 			"role": "Security",
 			"shore_leave_days": 0.0,
 			"status": "active",
-			"trips": 8
+			"trips": 18
 		},
 		{
 			"assigned_to": "node_7",
-			"efficiency": 0.88,
+			"efficiency": 0.99,
 			"id": "crew_10",
 			"name": "Ash Asari",
 			"portrait": "res://assets/pictures/profiles/alien_crystal.png",
 			"role": "Officer",
 			"shore_leave_days": 0.0,
 			"status": "active",
-			"trips": 8
+			"trips": 18
+		},
+		{
+			"assigned_to": "node_9",
+			"efficiency": 1.0,
+			"id": "crew_13",
+			"name": "Ash Sato",
+			"portrait": "res://assets/pictures/profiles/alien_crystal.png",
+			"role": "Technician",
+			"shore_leave_days": 0,
+			"status": "active",
+			"trips": 10
 		}
 	],
-	"crew_counter": 11,
+	"crew_counter": 14,
 	"crew_missions_completed": [
 		"mika_01_session_notes",
 		"bella_01_the_gala",
-		"zester_01_bar_tab"
+		"zester_01_bar_tab",
+		"river_01_diplomatic_pouch",
+		"river_02_asylum",
+		"fluffy_01_proposition",
+		"river_03_the_treaty_table",
+		"mika_02_negotiator"
 	],
-	"current_system": "alpha_cen",
+	"current_system": "barnard",
 	"discovered_systems": [
 		"sol",
 		"proxima",
@@ -140,53 +210,23 @@
 		"station_k",
 		"barnard",
 		"new_haven",
-		"cygnus"
+		"cygnus",
+		"deneb",
+		"hadley",
+		"scylla"
 	],
-	"jobs_completed": 17,
+	"jobs_completed": 27,
 	"nodes": [
-		{
-			"def_id": "bsg_tylium",
-			"durability": 100,
-			"hull_px": 0.0,
-			"hull_py": 11.4285697937012,
-			"name": "_GraphNode_1541",
-			"pos_x": 780.0,
-			"pos_y": 140.0,
-			"texture": "res://assets/pictures/textures/tex_technology.png",
-			"uid": "node_1"
-		},
 		{
 			"def_id": "dune_navchamber",
 			"durability": 80,
 			"hull_px": 0.0,
 			"hull_py": -20.4081592559814,
 			"name": "_GraphNode_1550",
-			"pos_x": 180.0,
-			"pos_y": 140.0,
+			"pos_x": 600.0,
+			"pos_y": -60.0,
 			"texture": "res://assets/pictures/textures/tex_technology.png",
 			"uid": "node_3"
-		},
-		{
-			"def_id": "sw_cargo",
-			"durability": 70,
-			"hull_px": 27.346866607666,
-			"hull_py": -9.59181785583496,
-			"name": "node_7",
-			"pos_x": 380.0,
-			"pos_y": 140.0,
-			"texture": "res://assets/pictures/textures/tex_technology.png",
-			"uid": "node_7"
-		},
-		{
-			"def_id": "sw_cargo",
-			"durability": 70,
-			"hull_px": 26.7346572875977,
-			"hull_py": 10.6122436523438,
-			"name": "node_4",
-			"pos_x": 380.0,
-			"pos_y": 280.0,
-			"texture": "res://assets/pictures/textures/tex_technology.png",
-			"uid": "node_4"
 		},
 		{
 			"def_id": "trek_torpedo",
@@ -194,10 +234,43 @@
 			"hull_px": 0.0,
 			"hull_py": 50.0,
 			"name": "node_5",
-			"pos_x": 580.0,
-			"pos_y": 140.0,
+			"pos_x": 600.0,
+			"pos_y": 100.0,
 			"texture": "res://assets/pictures/textures/tex_technology.png",
 			"uid": "node_5"
+		},
+		{
+			"def_id": "trek_impulse",
+			"durability": 90,
+			"hull_px": -0.816326498985291,
+			"hull_py": 33.4693756103516,
+			"name": "_GraphNode_1559",
+			"pos_x": 600.0,
+			"pos_y": 260.0,
+			"texture": "res://assets/pictures/textures/tex_vothaal_hull.png",
+			"uid": "node_2"
+		},
+		{
+			"def_id": "dune_suspensor",
+			"durability": 85,
+			"hull_px": 7.57999801635742,
+			"hull_py": 17.2793521881104,
+			"name": "node_9",
+			"pos_x": 800.0,
+			"pos_y": 260.0,
+			"texture": "res://assets/pictures/textures/tex_vothaal_hull.png",
+			"uid": "node_9"
+		},
+		{
+			"def_id": "bsg_tylium",
+			"durability": 100,
+			"hull_px": 0.0,
+			"hull_py": 11.4285697937012,
+			"name": "_GraphNode_1541",
+			"pos_x": 320.0,
+			"pos_y": 20.0,
+			"texture": "res://assets/pictures/textures/tex_technology.png",
+			"uid": "node_1"
 		},
 		{
 			"def_id": "exp_railgun",
@@ -205,8 +278,8 @@
 			"hull_px": 12.0406875610352,
 			"hull_py": 14.0816497802734,
 			"name": "node_8",
-			"pos_x": 580.0,
-			"pos_y": 280.0,
+			"pos_x": 800.0,
+			"pos_y": 100.0,
 			"texture": "res://assets/pictures/textures/tex_technology.png",
 			"uid": "node_8"
 		},
@@ -216,27 +289,116 @@
 			"hull_px": 26.3265419006348,
 			"hull_py": 33.6734771728516,
 			"name": "node_6",
-			"pos_x": 780.0,
-			"pos_y": 280.0,
+			"pos_x": 320.0,
+			"pos_y": 260.0,
 			"texture": "res://assets/pictures/textures/tex_technology.png",
 			"uid": "node_6"
 		},
 		{
-			"def_id": "trek_impulse",
+			"def_id": "sw_cargo",
+			"durability": 70,
+			"hull_px": 27.346866607666,
+			"hull_py": -9.59181785583496,
+			"name": "node_7",
+			"pos_x": 600.0,
+			"pos_y": 420.0,
+			"texture": "res://assets/pictures/textures/tex_technology.png",
+			"uid": "node_7"
+		},
+		{
+			"def_id": "sw_cargo",
+			"durability": 70,
+			"hull_px": 26.7346572875977,
+			"hull_py": 10.6122436523438,
+			"name": "node_4",
+			"pos_x": 800.0,
+			"pos_y": 420.0,
+			"texture": "res://assets/pictures/textures/tex_technology.png",
+			"uid": "node_4"
+		},
+		{
+			"def_id": "me_eezo",
+			"durability": 95,
+			"hull_px": 15.5454635620117,
+			"hull_py": 15.2112340927124,
+			"name": "node_10",
+			"pos_x": 320.0,
+			"pos_y": 420.0,
+			"texture": "res://assets/pictures/textures/tex_varak_hull.png",
+			"uid": "node_10"
+		},
+		{
+			"def_id": "exp_epstein",
 			"durability": 90,
-			"hull_px": -0.816326498985291,
-			"hull_py": 33.4693756103516,
-			"name": "_GraphNode_1559",
-			"pos_x": 980.0,
-			"pos_y": 140.0,
+			"hull_px": 9.0400390625,
+			"hull_py": 12.4538898468018,
+			"name": "node_11",
+			"pos_x": 1000.0,
+			"pos_y": 260.0,
+			"texture": "res://assets/pictures/textures/tex_polymer_coating.png",
+			"uid": "node_11"
+		},
+		{
+			"def_id": "sw_kyber",
+			"durability": 95,
+			"hull_px": 12.8167181015015,
+			"hull_py": 24.065803527832,
+			"name": "node_16",
+			"pos_x": 60.0,
+			"pos_y": 120.0,
+			"texture": "res://assets/pictures/textures/tex_aged_iron.png",
+			"uid": "node_16"
+		},
+		{
+			"def_id": "dune_shield",
+			"durability": 80,
+			"hull_px": 4.60186386108398,
+			"hull_py": 13.1432256698608,
+			"name": "node_12",
+			"pos_x": 1000.0,
+			"pos_y": 100.0,
+			"texture": "res://assets/pictures/textures/tex_reinforced_glass.png",
+			"uid": "node_12"
+		},
+		{
+			"def_id": "bsg_kew",
+			"durability": 78,
+			"hull_px": 3.44545364379883,
+			"hull_py": 25.2295818328857,
+			"name": "node_13",
+			"pos_x": 1220.0,
+			"pos_y": 100.0,
 			"texture": "res://assets/pictures/textures/tex_vothaal_hull.png",
-			"uid": "node_2"
+			"uid": "node_13"
+		},
+		{
+			"def_id": "dune_cargo",
+			"durability": 70,
+			"hull_px": 15.5454635620117,
+			"hull_py": 29.3656139373779,
+			"name": "node_14",
+			"pos_x": 1200.0,
+			"pos_y": 420.0,
+			"texture": "res://assets/pictures/textures/tex_vothaal_hull.png",
+			"uid": "node_14"
+		},
+		{
+			"def_id": "sw_cargo",
+			"durability": 70,
+			"hull_px": 6.28366470336914,
+			"hull_py": 8.68542003631592,
+			"name": "node_15",
+			"pos_x": 1000.0,
+			"pos_y": 420.0,
+			"texture": "res://assets/pictures/textures/tex_reinforced_glass.png",
+			"uid": "node_15"
 		}
 	],
 	"percy_missions_completed": [
 		"percy_01_first_steps",
 		"percy_02_kepler_run",
-		"percy_03_barnard_trace"
+		"percy_03_barnard_trace",
+		"percy_04_cygnus_signal"
 	],
 	"ship_3d_layout": {
 		"node_1": {
@@ -246,6 +408,20 @@
 			"rot_y": 0.0,
 			"scale": 0.75,
 			"tex": "res://assets/pictures/textures/tex_technology.png"
+		},
+		"node_10": {
+			"ox": -0.45,
+			"oy": 0.0,
+			"oz": -0.55,
+			"rot_y": 0.0,
+			"scale": 0.5
+		},
+		"node_11": {
+			"ox": -0.0499999999999998,
+			"oy": 0.0,
+			"oz": -0.35,
+			"rot_y": 0.0,
+			"scale": 0.5
 		},
 		"node_2": {
 			"ox": 0.0,
@@ -302,6 +478,14 @@
 			"rot_y": 0.0,
 			"scale": 0.5,
 			"tex": "res://assets/pictures/textures/tex_technology.png"
+		},
+		"node_9": {
+			"ox": 0.0,
+			"oy": 0.0,
+			"oz": 1.1,
+			"rot_y": 0.0,
+			"scale": 1.0,
+			"tex": "res://assets/pictures/textures/tex_vothaal_hull.png"
 		}
 	},
 	"ship_log": [
@@ -796,9 +980,9 @@
 			"wages": 280.0
 		},
 		{
-			"crew": 7,
-			"days": 9,
-			"earned": 1781,
+			"crew": 7.0,
+			"days": 9.0,
+			"earned": 1781.0,
 			"from": "station_k",
 			"lines": [
 				"[color=#55cc77]* Hull adjacency: 25 room pairs detected[/color]",
@@ -834,13 +1018,13 @@
 			],
 			"to": "barnard",
 			"to_name": "Barnard's Star",
-			"voyage": 14,
-			"wages": 504
+			"voyage": 14.0,
+			"wages": 504.0
 		},
 		{
-			"crew": 7,
-			"days": 4,
-			"earned": 768,
+			"crew": 7.0,
+			"days": 4.0,
+			"earned": 768.0,
 			"from": "barnard",
 			"lines": [
 				"[color=#55cc77]* Hull adjacency: 25 room pairs detected[/color]",
@@ -866,13 +1050,13 @@
 			"promotions": [],
 			"to": "station_k",
 			"to_name": "Kepler Station",
-			"voyage": 15,
-			"wages": 224
+			"voyage": 15.0,
+			"wages": 224.0
 		},
 		{
-			"crew": 7,
-			"days": 4,
-			"earned": 520,
+			"crew": 7.0,
+			"days": 4.0,
+			"earned": 520.0,
 			"from": "station_k",
 			"lines": [
 				"[color=#55cc77]* Hull adjacency: 25 room pairs detected[/color]",
@@ -895,13 +1079,13 @@
 			],
 			"to": "station_k",
 			"to_name": "Kepler Station",
-			"voyage": 16,
-			"wages": 224
+			"voyage": 16.0,
+			"wages": 224.0
 		},
 		{
-			"crew": 7,
-			"days": 2,
-			"earned": 570,
+			"crew": 7.0,
+			"days": 2.0,
+			"earned": 570.0,
 			"from": "station_k",
 			"lines": [
 				"[color=#55cc77]* Hull adjacency: 25 room pairs detected[/color]",
@@ -927,8 +1111,485 @@
 			"promotions": [],
 			"to": "alpha_cen",
 			"to_name": "Alpha Centauri",
-			"voyage": 17,
-			"wages": 112
+			"voyage": 17.0,
+			"wages": 112.0
+		},
+		{
+			"crew": 8,
+			"days": 10,
+			"earned": 1344,
+			"from": "alpha_cen",
+			"lines": [
+				"[color=#55cc77]* Hull adjacency: 26 room pairs detected[/color]",
+				"[color=#4488ff]===  Nship  --  Smuggling  --  10 days to Kepler Station  ===[/color]",
+				"[color=#6688cc]  Departing Alpha Centauri. Engines spooling up…[/color]",
+				"[color=#6677aa]  Via: Sol[/color]",
+				"[color=#88aaff]  Course locked. Initiating FTL burn.[/color]",
+				"[color=#55cc77]* Adjacency: -2 wear on Tylium Reactor[/color]",
+				"[color=#55cc77]* Adjacency: -2 wear on Navigation Chamber[/color]",
+				"[color=#55cc77]* Adjacency: -1 wear on Cargo Hold[/color]",
+				"[color=#55cc77]* Adjacency: -1 wear on Cargo Hold[/color]",
+				"[color=#55cc77]* Adjacency: -1 wear on Torpedo Bay[/color]",
+				"[color=#55cc77]* Adjacency: -2 wear on Rail Gun[/color]",
+				"[color=#55cc77]* Adjacency: -2 wear on Holtzman Generator[/color]",
+				"[color=#55cc77]* Adjacency: -2 wear on Impulse Engine[/color]",
+				"[color=#aaccff]>> Passing through Sol[/color]",
+				"[color=#556677]  Routine transit.[/color]",
+				"[color=#44aaff][shield] Security crew mitigated 4 damage[/color]",
+				"[color=#55cc77]* Hull synergy: Tactical adjacency reduced 3 damage[/color]",
+				"[color=#ff5533][!] [b]Pirate Scout[/b] attacking! -9 dur to [b]Tylium Reactor[/b][/color]",
+				"[color=#88ccff][target] 2 Tactical room(s) engaging... (58% hit)[/color]",
+				"[color=#ff8844]X Missed! [b]Pirate Scout[/b] returns fire![/color]",
+				"[color=#ff3311][!] Retaliation! -6 dur to [b]Torpedo Bay[/b][/color]",
+				"[color=#44aaff][shield] Security crew mitigated 7 damage[/color]",
+				"[color=#55cc77]* Hull synergy: Tactical adjacency reduced 4 damage[/color]",
+				"[color=#ff5533][!] [b]Raider[/b] attacking! -14 dur to [b]Holtzman Generator[/b][/color]",
+				"[color=#88ccff][target] 2 Tactical room(s) engaging... (58% hit)[/color]",
+				"[color=#44ff88]** Direct hit! [b]Raider[/b] destroyed.[/color]",
+				"[color=#ffd050]  Salvage recovered: +250 cr[/color]",
+				"",
+				"[color=#ffd050]===  Arrived at Kepler Station  ===[/color]",
+				"[color=#ffd050]Net earned: 1344 credits[/color]",
+				"[color=#ff8844]Crew wages: -640 cr[/color]"
+			],
+			"promotions": [],
+			"to": "station_k",
+			"to_name": "Kepler Station",
+			"voyage": 18,
+			"wages": 640
+		},
+		{
+			"crew": 8,
+			"days": 16,
+			"earned": 3629,
+			"from": "station_k",
+			"lines": [
+				"[color=#55cc77]* Hull adjacency: 26 room pairs detected[/color]",
+				"[color=#4488ff]===  Nship  --  Percy Mission  --  16 days to Cygnus Reach  ===[/color]",
+				"[color=#6688cc]  Departing Kepler Station. Engines spooling up…[/color]",
+				"[color=#6677aa]  Via: Barnard's Star[/color]",
+				"[color=#88aaff]  Course locked. Initiating FTL burn.[/color]",
+				"[color=#55cc77]* Adjacency: -2 wear on Tylium Reactor[/color]",
+				"[color=#55cc77]* Adjacency: -2 wear on Navigation Chamber[/color]",
+				"[color=#55cc77]* Adjacency: -1 wear on Cargo Hold[/color]",
+				"[color=#55cc77]* Adjacency: -1 wear on Cargo Hold[/color]",
+				"[color=#55cc77]* Adjacency: -1 wear on Torpedo Bay[/color]",
+				"[color=#55cc77]* Adjacency: -2 wear on Rail Gun[/color]",
+				"[color=#55cc77]* Adjacency: -2 wear on Holtzman Generator[/color]",
+				"[color=#55cc77]* Adjacency: -2 wear on Impulse Engine[/color]",
+				"[color=#556677]  Routine transit.[/color]",
+				"[color=#aaccff]>> Passing through Barnard's Star[/color]",
+				"[color=#556677]  Routine transit.[/color]",
+				"[color=#44aaff][+] Officer negotiated +48 cr bonus[/color]",
+				"[color=#55cc77]* Hull synergy: Command adjacency +46 cr[/color]",
+				"[color=#44ee88][OK] Diplomatic contract -- +355 cr[/color]",
+				"[color=#556677]  Routine transit.[/color]",
+				"[color=#44aaff][shield] Security crew mitigated 10 damage[/color]",
+				"[color=#55cc77]* Hull synergy: Tactical adjacency reduced 6 damage[/color]",
+				"[color=#ff5533][!] [b]Patrol Craft[/b] attacking! -20 dur to [b]Impulse Engine[/b][/color]",
+				"[color=#88ccff][target] 2 Tactical room(s) engaging... (58% hit)[/color]",
+				"[color=#44ff88]** Direct hit! [b]Patrol Craft[/b] destroyed.[/color]",
+				"[color=#ffd050]  Salvage recovered: +645 cr[/color]",
+				"",
+				"[color=#ffd050]===  Arrived at Cygnus Reach  ===[/color]",
+				"[color=#ffd050]Net earned: 3629 credits[/color]",
+				"[color=#ff8844]Crew wages: -1024 cr[/color]"
+			],
+			"promotions": [],
+			"to": "cygnus",
+			"to_name": "Cygnus Reach",
+			"voyage": 19,
+			"wages": 1024
+		},
+		{
+			"crew": 8,
+			"days": 4,
+			"earned": 700,
+			"from": "cygnus",
+			"lines": [
+				"[color=#55cc77]* Hull adjacency: 28 room pairs detected[/color]",
+				"[color=#4488ff]===  Nship  --  Ambassador River Mission  --  4 days to Proxima Centauri  ===[/color]",
+				"[color=#6688cc]  Departing Cygnus Reach. Engines spooling up…[/color]",
+				"[color=#88aaff]  Course locked. Initiating FTL burn.[/color]",
+				"[color=#55cc77]* Adjacency: -2 wear on Navigation Chamber[/color]",
+				"[color=#55cc77]* Adjacency: -1 wear on Torpedo Bay[/color]",
+				"[color=#55cc77]* Adjacency: -2 wear on Impulse Engine[/color]",
+				"[color=#55cc77]* Adjacency: -1 wear on Suspensor Drive[/color]",
+				"[color=#55cc77]* Adjacency: -2 wear on Tylium Reactor[/color]",
+				"[color=#55cc77]* Adjacency: -2 wear on Rail Gun[/color]",
+				"[color=#55cc77]* Adjacency: -2 wear on Holtzman Generator[/color]",
+				"[color=#55cc77]* Adjacency: -1 wear on Cargo Hold[/color]",
+				"[color=#55cc77]* Adjacency: -1 wear on Cargo Hold[/color]",
+				"[color=#55cc77]* Adjacency: -1 wear on Epstein Drive[/color]",
+				"[color=#556677]  Routine transit.[/color]",
+				"",
+				"[color=#ffd050]===  Arrived at Proxima Centauri  ===[/color]",
+				"[color=#ffd050]Net earned: 700 credits[/color]",
+				"[color=#ff8844]Crew wages: -256 cr[/color]"
+			],
+			"promotions": [
+				"Ash Sato is now Seasoned! (efficiency +3%)"
+			],
+			"to": "proxima",
+			"to_name": "Proxima Centauri",
+			"voyage": 20,
+			"wages": 256
+		},
+		{
+			"crew": 8,
+			"days": 9,
+			"earned": 2040,
+			"from": "proxima",
+			"lines": [
+				"[color=#55cc77]* Hull adjacency: 28 room pairs detected[/color]",
+				"[color=#4488ff]===  Nship  --  Ambassador River Mission  --  9 days to Barnard's Star  ===[/color]",
+				"[color=#6688cc]  Departing Proxima Centauri. Engines spooling up…[/color]",
+				"[color=#88aaff]  Course locked. Initiating FTL burn.[/color]",
+				"[color=#44aaff][+] Officer negotiated +46 cr bonus[/color]",
+				"[color=#55cc77]* Hull synergy: Command adjacency +45 cr[/color]",
+				"[color=#44ee88][OK] Profitable cargo run -- +345 cr[/color]",
+				"[color=#55cc77]* Adjacency: -2 wear on Navigation Chamber[/color]",
+				"[color=#55cc77]* Adjacency: -1 wear on Torpedo Bay[/color]",
+				"[color=#55cc77]* Adjacency: -2 wear on Impulse Engine[/color]",
+				"[color=#55cc77]* Adjacency: -1 wear on Suspensor Drive[/color]",
+				"[color=#55cc77]* Adjacency: -2 wear on Tylium Reactor[/color]",
+				"[color=#55cc77]* Adjacency: -2 wear on Rail Gun[/color]",
+				"[color=#55cc77]* Adjacency: -2 wear on Holtzman Generator[/color]",
+				"[color=#55cc77]* Adjacency: -1 wear on Cargo Hold[/color]",
+				"[color=#55cc77]* Adjacency: -1 wear on Cargo Hold[/color]",
+				"[color=#55cc77]* Adjacency: -1 wear on Epstein Drive[/color]",
+				"[color=#44aaff][+] Officer negotiated +23 cr bonus[/color]",
+				"[color=#55cc77]* Hull synergy: Command adjacency +22 cr[/color]",
+				"[color=#44ee88][OK] Profitable cargo run -- +174 cr[/color]",
+				"[color=#556677]  Routine transit.[/color]",
+				"",
+				"[color=#ffd050]===  Arrived at Barnard's Star  ===[/color]",
+				"[color=#ffd050]Net earned: 2040 credits[/color]",
+				"[color=#ff8844]Crew wages: -576 cr[/color]"
+			],
+			"promotions": [
+				"Vex Thorne is now Legendary! (efficiency +5%)",
+				"Kira Jorik is now Elite! (efficiency +5%)",
+				"Hex Rynn is now Elite! (efficiency +5%)",
+				"Lyra Rynn is now Elite! (efficiency +5%)",
+				"Ash Asari is now Elite! (efficiency +5%)"
+			],
+			"to": "barnard",
+			"to_name": "Barnard's Star",
+			"voyage": 21,
+			"wages": 576
+		},
+		{
+			"crew": 8,
+			"days": 29,
+			"earned": 5231,
+			"from": "barnard",
+			"lines": [
+				"[color=#55cc77]* Hull adjacency: 28 room pairs detected[/color]",
+				"[color=#4488ff]===  Nship  --  Colony Supply  --  29 days to Deneb  ===[/color]",
+				"[color=#6688cc]  Departing Barnard's Star. Engines spooling up…[/color]",
+				"[color=#6677aa]  Via: Proxima Centauri, Sirius[/color]",
+				"[color=#88aaff]  Course locked. Initiating FTL burn.[/color]",
+				"[color=#55cc77]* Adjacency: -2 wear on Navigation Chamber[/color]",
+				"[color=#55cc77]* Adjacency: -1 wear on Torpedo Bay[/color]",
+				"[color=#55cc77]* Adjacency: -2 wear on Impulse Engine[/color]",
+				"[color=#55cc77]* Adjacency: -1 wear on Suspensor Drive[/color]",
+				"[color=#55cc77]* Adjacency: -2 wear on Tylium Reactor[/color]",
+				"[color=#55cc77]* Adjacency: -2 wear on Rail Gun[/color]",
+				"[color=#55cc77]* Adjacency: -2 wear on Holtzman Generator[/color]",
+				"[color=#55cc77]* Adjacency: -1 wear on Cargo Hold[/color]",
+				"[color=#55cc77]* Adjacency: -1 wear on Cargo Hold[/color]",
+				"[color=#55cc77]* Adjacency: -1 wear on Epstein Drive[/color]",
+				"[color=#556677]  Routine transit.[/color]",
+				"[color=#556677]  Routine transit.[/color]",
+				"[color=#aaccff]>> Passing through Proxima Centauri[/color]",
+				"[color=#556677]  Routine transit.[/color]",
+				"[color=#556677]  Routine transit.[/color]",
+				"[color=#556677]  Routine transit.[/color]",
+				"[color=#556677]  Routine transit.[/color]",
+				"[color=#aaccff]>> Passing through Sirius[/color]",
+				"[color=#556677]  Routine transit.[/color]",
+				"[color=#556677]  Routine transit.[/color]",
+				"[color=#44aaff][+] Officer negotiated +73 cr bonus[/color]",
+				"[color=#55cc77]* Hull synergy: Command adjacency +67 cr[/color]",
+				"[color=#44ee88][OK] Diplomatic contract -- +520 cr[/color]",
+				"",
+				"[color=#ffd050]===  Arrived at Deneb  ===[/color]",
+				"[color=#ffd050]Net earned: 5231 credits[/color]",
+				"[color=#ff8844]Crew wages: -1856 cr[/color]"
+			],
+			"promotions": [
+				"Vash Jorik is now Legendary! (efficiency +5%)",
+				"Kova Nexis is now Legendary! (efficiency +5%)"
+			],
+			"to": "deneb",
+			"to_name": "Deneb",
+			"voyage": 22,
+			"wages": 1856
+		},
+		{
+			"crew": 8,
+			"days": 3,
+			"earned": 446,
+			"from": "deneb",
+			"lines": [
+				"[color=#55cc77]* Hull adjacency: 28 room pairs detected[/color]",
+				"[color=#4488ff]===  Nship  --  Fluffy Mission  --  3 days to Alpha Centauri  ===[/color]",
+				"[color=#6688cc]  Departing Deneb. Engines spooling up…[/color]",
+				"[color=#88aaff]  Course locked. Initiating FTL burn.[/color]",
+				"[color=#55cc77]* Adjacency: -2 wear on Navigation Chamber[/color]",
+				"[color=#55cc77]* Adjacency: -1 wear on Torpedo Bay[/color]",
+				"[color=#55cc77]* Adjacency: -2 wear on Impulse Engine[/color]",
+				"[color=#55cc77]* Adjacency: -1 wear on Suspensor Drive[/color]",
+				"[color=#55cc77]* Adjacency: -2 wear on Tylium Reactor[/color]",
+				"[color=#55cc77]* Adjacency: -2 wear on Rail Gun[/color]",
+				"[color=#55cc77]* Adjacency: -2 wear on Holtzman Generator[/color]",
+				"[color=#55cc77]* Adjacency: -1 wear on Cargo Hold[/color]",
+				"[color=#55cc77]* Adjacency: -1 wear on Cargo Hold[/color]",
+				"[color=#55cc77]* Adjacency: -1 wear on Epstein Drive[/color]",
+				"[color=#44aaff][shield] Security crew mitigated 4 damage[/color]",
+				"[color=#55cc77]* Hull synergy: Tactical adjacency reduced 2 damage[/color]",
+				"[color=#ff5533][!] [b]Patrol Craft[/b] attacking! -8 dur to [b]Rail Gun[/b][/color]",
+				"[color=#88ccff][target] 2 Tactical room(s) engaging... (58% hit)[/color]",
+				"[color=#ff8844]X Missed! [b]Patrol Craft[/b] returns fire![/color]",
+				"[color=#ff3311][!] Retaliation! -6 dur to [b]Tylium Reactor[/b][/color]",
+				"",
+				"[color=#ffd050]===  Arrived at Alpha Centauri  ===[/color]",
+				"[color=#ffd050]Net earned: 446 credits[/color]",
+				"[color=#ff8844]Crew wages: -192 cr[/color]"
+			],
+			"promotions": [],
+			"to": "alpha_cen",
+			"to_name": "Alpha Centauri",
+			"voyage": 23,
+			"wages": 192
+		},
+		{
+			"crew": 8,
+			"days": 23,
+			"earned": 4694,
+			"from": "alpha_cen",
+			"lines": [
+				"[color=#55cc77]* Hull adjacency: 28 room pairs detected[/color]",
+				"[color=#4488ff]===  Nship  --  Salvage Run  --  23 days to Cygnus Reach  ===[/color]",
+				"[color=#6688cc]  Departing Alpha Centauri. Engines spooling up…[/color]",
+				"[color=#6677aa]  Via: Kepler Station, Barnard's Star[/color]",
+				"[color=#88aaff]  Course locked. Initiating FTL burn.[/color]",
+				"[color=#55cc77]* Adjacency: -2 wear on Navigation Chamber[/color]",
+				"[color=#55cc77]* Adjacency: -1 wear on Torpedo Bay[/color]",
+				"[color=#55cc77]* Adjacency: -2 wear on Impulse Engine[/color]",
+				"[color=#55cc77]* Adjacency: -1 wear on Suspensor Drive[/color]",
+				"[color=#55cc77]* Adjacency: -2 wear on Tylium Reactor[/color]",
+				"[color=#55cc77]* Adjacency: -2 wear on Rail Gun[/color]",
+				"[color=#55cc77]* Adjacency: -2 wear on Holtzman Generator[/color]",
+				"[color=#55cc77]* Adjacency: -1 wear on Cargo Hold[/color]",
+				"[color=#55cc77]* Adjacency: -1 wear on Cargo Hold[/color]",
+				"[color=#55cc77]* Adjacency: -1 wear on Epstein Drive[/color]",
+				"[color=#44aaff][shield] Security crew mitigated 3 damage[/color]",
+				"[color=#55cc77]* Hull synergy: Tactical adjacency reduced 2 damage[/color]",
+				"[color=#ff5533][!] [b]Raider[/b] attacking! -7 dur to [b]Navigation Chamber[/b][/color]",
+				"[color=#88ccff][target] 2 Tactical room(s) engaging... (58% hit)[/color]",
+				"[color=#44ff88]** Direct hit! [b]Raider[/b] destroyed.[/color]",
+				"[color=#ffd050]  Salvage recovered: +269 cr[/color]",
+				"[color=#44aaff][shield] Security crew mitigated 3 damage[/color]",
+				"[color=#55cc77]* Hull synergy: Tactical adjacency reduced 2 damage[/color]",
+				"[color=#ff5533][!] [b]Raider[/b] attacking! -8 dur to [b]Epstein Drive[/b][/color]",
+				"[color=#88ccff][target] 2 Tactical room(s) engaging... (58% hit)[/color]",
+				"[color=#ff8844]X Missed! [b]Raider[/b] returns fire![/color]",
+				"[color=#ff3311][!] Retaliation! -11 dur to [b]Cargo Hold[/b][/color]",
+				"[color=#aaccff]>> Passing through Kepler Station[/color]",
+				"[color=#44aaff][+] Officer negotiated +50 cr bonus[/color]",
+				"[color=#55cc77]* Hull synergy: Command adjacency +45 cr[/color]",
+				"[color=#44ee88][OK] Diplomatic contract -- +347 cr[/color]",
+				"[color=#44aaff][+] Officer negotiated +50 cr bonus[/color]",
+				"[color=#55cc77]* Hull synergy: Command adjacency +45 cr[/color]",
+				"[color=#44ee88][OK] Diplomatic contract -- +345 cr[/color]",
+				"[color=#aaccff]>> Passing through Barnard's Star[/color]",
+				"[color=#44aaff][+] Officer negotiated +38 cr bonus[/color]",
+				"[color=#55cc77]* Hull synergy: Command adjacency +34 cr[/color]",
+				"[color=#44ee88][OK] Profitable cargo run -- +265 cr[/color]",
+				"[color=#44aaff][+] Officer negotiated +27 cr bonus[/color]",
+				"[color=#55cc77]* Hull synergy: Command adjacency +24 cr[/color]",
+				"[color=#44ee88][OK] Profitable cargo run -- +186 cr[/color]",
+				"[color=#44aaff][shield] Security crew mitigated 3 damage[/color]",
+				"[color=#55cc77]* Hull synergy: Tactical adjacency reduced 2 damage[/color]",
+				"[color=#ff5533][!] [b]Bounty Hunter[/b] attacking! -6 dur to [b]Epstein Drive[/b][/color]",
+				"[color=#88ccff][target] 2 Tactical room(s) engaging... (58% hit)[/color]",
+				"[color=#ff8844]X Missed! [b]Bounty Hunter[/b] returns fire![/color]",
+				"[color=#ff3311][!] Retaliation! -9 dur to [b]Suspensor Drive[/b][/color]",
+				"",
+				"[color=#ffd050]===  Arrived at Cygnus Reach  ===[/color]",
+				"[color=#ffd050]Net earned: 4694 credits[/color]",
+				"[color=#ff8844]Crew wages: -1472 cr[/color]"
+			],
+			"promotions": [
+				"Ash Sato is now Veteran! (efficiency +4%)"
+			],
+			"to": "cygnus",
+			"to_name": "Cygnus Reach",
+			"voyage": 24,
+			"wages": 1472
+		},
+		{
+			"crew": 8,
+			"days": 16,
+			"earned": 4405,
+			"from": "cygnus",
+			"lines": [
+				"[color=#55cc77]* Hull adjacency: 28 room pairs detected[/color]",
+				"[color=#4488ff]===  Nship  --  Ambassador River Mission  --  16 days to Cygnus Reach  ===[/color]",
+				"[color=#6688cc]  Departing Cygnus Reach. Engines spooling up…[/color]",
+				"[color=#6677aa]  Via: Barnard's Star[/color]",
+				"[color=#88aaff]  Course locked. Initiating FTL burn.[/color]",
+				"[color=#55cc77]* Adjacency: -2 wear on Navigation Chamber[/color]",
+				"[color=#55cc77]* Adjacency: -1 wear on Torpedo Bay[/color]",
+				"[color=#55cc77]* Adjacency: -2 wear on Impulse Engine[/color]",
+				"[color=#55cc77]* Adjacency: -1 wear on Suspensor Drive[/color]",
+				"[color=#55cc77]* Adjacency: -2 wear on Tylium Reactor[/color]",
+				"[color=#55cc77]* Adjacency: -2 wear on Rail Gun[/color]",
+				"[color=#55cc77]* Adjacency: -2 wear on Holtzman Generator[/color]",
+				"[color=#55cc77]* Adjacency: -1 wear on Cargo Hold[/color]",
+				"[color=#55cc77]* Adjacency: -1 wear on Cargo Hold[/color]",
+				"[color=#55cc77]* Adjacency: -1 wear on Epstein Drive[/color]",
+				"[color=#44aaff][+] Officer negotiated +18 cr bonus[/color]",
+				"[color=#55cc77]* Hull synergy: Command adjacency +16 cr[/color]",
+				"[color=#44ee88][OK] Profitable cargo run -- +126 cr[/color]",
+				"[color=#44aaff][shield] Security crew mitigated 7 damage[/color]",
+				"[color=#55cc77]* Hull synergy: Tactical adjacency reduced 4 damage[/color]",
+				"[color=#ff5533][!] [b]Raider[/b] attacking! -13 dur to [b]Torpedo Bay[/b][/color]",
+				"[color=#88ccff][target] 2 Tactical room(s) engaging... (58% hit)[/color]",
+				"[color=#44ff88]** Direct hit! [b]Raider[/b] destroyed.[/color]",
+				"[color=#ffd050]  Salvage recovered: +282 cr[/color]",
+				"[color=#aaccff]>> Passing through Barnard's Star[/color]",
+				"[color=#44aaff][shield] Security crew mitigated 7 damage[/color]",
+				"[color=#55cc77]* Hull synergy: Tactical adjacency reduced 4 damage[/color]",
+				"[color=#ff5533][!] [b]Raider[/b] attacking! -13 dur to [b]Rail Gun[/b][/color]",
+				"[color=#88ccff][target] 2 Tactical room(s) engaging... (58% hit)[/color]",
+				"[color=#44ff88]** Direct hit! [b]Raider[/b] destroyed.[/color]",
+				"[color=#ffd050]  Salvage recovered: +213 cr[/color]",
+				"[color=#44aaff][+] Officer negotiated +28 cr bonus[/color]",
+				"[color=#55cc77]* Hull synergy: Command adjacency +25 cr[/color]",
+				"[color=#44ee88][OK] Diplomatic contract -- +196 cr[/color]",
+				"[color=#44aaff][+] Officer negotiated +61 cr bonus[/color]",
+				"[color=#55cc77]* Hull synergy: Command adjacency +54 cr[/color]",
+				"[color=#44ee88][OK] Diplomatic contract -- +420 cr[/color]",
+				"",
+				"[color=#ffd050]===  Arrived at Cygnus Reach  ===[/color]",
+				"[color=#ffd050]Net earned: 4405 credits[/color]",
+				"[color=#ff8844]Crew wages: -1024 cr[/color]"
+			],
+			"promotions": [],
+			"to": "cygnus",
+			"to_name": "Cygnus Reach",
+			"voyage": 25,
+			"wages": 1024
+		},
+		{
+			"crew": 8,
+			"days": 10,
+			"earned": 1841,
+			"from": "cygnus",
+			"lines": [
+				"[color=#55cc77]* Hull adjacency: 28 room pairs detected[/color]",
+				"[color=#4488ff]===  Nship  --  Counselor Mika Mission  --  10 days to Deneb  ===[/color]",
+				"[color=#6688cc]  Departing Cygnus Reach. Engines spooling up…[/color]",
+				"[color=#6677aa]  Via: Proxima Centauri[/color]",
+				"[color=#88aaff]  Course locked. Initiating FTL burn.[/color]",
+				"[color=#55cc77]* Adjacency: -2 wear on Navigation Chamber[/color]",
+				"[color=#55cc77]* Adjacency: -1 wear on Torpedo Bay[/color]",
+				"[color=#55cc77]* Adjacency: -2 wear on Impulse Engine[/color]",
+				"[color=#55cc77]* Adjacency: -1 wear on Suspensor Drive[/color]",
+				"[color=#55cc77]* Adjacency: -2 wear on Tylium Reactor[/color]",
+				"[color=#55cc77]* Adjacency: -2 wear on Rail Gun[/color]",
+				"[color=#55cc77]* Adjacency: -2 wear on Holtzman Generator[/color]",
+				"[color=#55cc77]* Adjacency: -1 wear on Cargo Hold[/color]",
+				"[color=#55cc77]* Adjacency: -1 wear on Cargo Hold[/color]",
+				"[color=#55cc77]* Adjacency: -1 wear on Epstein Drive[/color]",
+				"[color=#44aaff][shield] Security crew mitigated 3 damage[/color]",
+				"[color=#55cc77]* Hull synergy: Tactical adjacency reduced 1 damage[/color]",
+				"[color=#ff5533][!] [b]Pirate Scout[/b] attacking! -6 dur to [b]Element Zero Core[/b][/color]",
+				"[color=#88ccff][target] 2 Tactical room(s) engaging... (58% hit)[/color]",
+				"[color=#ff8844]X Missed! [b]Pirate Scout[/b] returns fire![/color]",
+				"[color=#ff3311][!] Retaliation! -9 dur to [b]Rail Gun[/b][/color]",
+				"[color=#556677]  Routine transit.[/color]",
+				"[color=#aaccff]>> Passing through Proxima Centauri[/color]",
+				"[color=#44aaff][+] Officer negotiated +66 cr bonus[/color]",
+				"[color=#55cc77]* Hull synergy: Command adjacency +60 cr[/color]",
+				"[color=#44ee88][OK] Diplomatic contract -- +460 cr[/color]",
+				"",
+				"[color=#ffd050]===  Arrived at Deneb  ===[/color]",
+				"[color=#ffd050]Net earned: 1841 credits[/color]",
+				"[color=#ff8844]Crew wages: -640 cr[/color]"
+			],
+			"promotions": [],
+			"to": "deneb",
+			"to_name": "Deneb",
+			"voyage": 26,
+			"wages": 640
+		},
+		{
+			"crew": 8,
+			"days": 29,
+			"earned": 9065,
+			"from": "deneb",
+			"lines": [
+				"[color=#55cc77]* Hull adjacency: 117 room pairs detected[/color]",
+				"[color=#4488ff]===  Nship  --  Salvage Run  --  29 days to Barnard's Star  ===[/color]",
+				"[color=#6688cc]  Departing Deneb. Engines spooling up…[/color]",
+				"[color=#6677aa]  Via: Sirius, Proxima Centauri[/color]",
+				"[color=#88aaff]  Course locked. Initiating FTL burn.[/color]",
+				"[color=#55cc77]* Adjacency: -2 wear on Navigation Chamber[/color]",
+				"[color=#55cc77]* Adjacency: -2 wear on Torpedo Bay[/color]",
+				"[color=#55cc77]* Adjacency: -2 wear on Impulse Engine[/color]",
+				"[color=#55cc77]* Adjacency: -2 wear on Suspensor Drive[/color]",
+				"[color=#55cc77]* Adjacency: -2 wear on Tylium Reactor[/color]",
+				"[color=#55cc77]* Adjacency: -2 wear on Rail Gun[/color]",
+				"[color=#55cc77]* Adjacency: -2 wear on Holtzman Generator[/color]",
+				"[color=#55cc77]* Adjacency: -2 wear on Cargo Hold[/color]",
+				"[color=#55cc77]* Adjacency: -2 wear on Cargo Hold[/color]",
+				"[color=#55cc77]* Adjacency: -2 wear on Element Zero Core[/color]",
+				"[color=#55cc77]* Adjacency: -2 wear on Epstein Drive[/color]",
+				"[color=#55cc77]* Adjacency: -2 wear on Kyber Crystal Matrix[/color]",
+				"[color=#55cc77]* Adjacency: -2 wear on Holtzman Shield[/color]",
+				"[color=#55cc77]* Adjacency: -2 wear on Kinetic Weapons[/color]",
+				"[color=#55cc77]* Adjacency: -2 wear on Spice Storage[/color]",
+				"[color=#55cc77]* Adjacency: -2 wear on Cargo Hold[/color]",
+				"[color=#556677]  Routine transit.[/color]",
+				"[color=#44aaff][+] Officer negotiated +53 cr bonus[/color]",
+				"[color=#55cc77]* Hull synergy: Command adjacency +48 cr[/color]",
+				"[color=#44ee88][OK] Profitable cargo run -- +369 cr[/color]",
+				"[color=#44aaff][+] Officer negotiated +32 cr bonus[/color]",
+				"[color=#55cc77]* Hull synergy: Command adjacency +29 cr[/color]",
+				"[color=#44ee88][OK] Diplomatic contract -- +223 cr[/color]",
+				"[color=#aaccff]>> Passing through Sirius[/color]",
+				"[color=#44aaff][+] Officer negotiated +59 cr bonus[/color]",
+				"[color=#55cc77]* Hull synergy: Command adjacency +53 cr[/color]",
+				"[color=#44ee88][OK] Profitable cargo run -- +407 cr[/color]",
+				"[color=#44aaff][+] Officer negotiated +59 cr bonus[/color]",
+				"[color=#55cc77]* Hull synergy: Command adjacency +53 cr[/color]",
+				"[color=#44ee88][OK] Profitable cargo run -- +407 cr[/color]",
+				"[color=#44aaff][+] Officer negotiated +25 cr bonus[/color]",
+				"[color=#55cc77]* Hull synergy: Command adjacency +22 cr[/color]",
+				"[color=#44ee88][OK] Profitable cargo run -- +173 cr[/color]",
+				"[color=#556677]  Routine transit.[/color]",
+				"[color=#aaccff]>> Passing through Proxima Centauri[/color]",
+				"[color=#556677]  Routine transit.[/color]",
+				"[color=#44aaff][shield] Security crew mitigated 6 damage[/color]",
+				"[color=#55cc77]* Hull synergy: Tactical adjacency reduced 3 damage[/color]",
+				"[color=#ff5533][!] [b]Bounty Hunter[/b] attacking! -12 dur to [b]Tylium Reactor[/b][/color]",
+				"[color=#88ccff][target] 4 Tactical room(s) engaging... (80% hit)[/color]",
+				"[color=#44ff88]** Direct hit! [b]Bounty Hunter[/b] destroyed.[/color]",
+				"[color=#ffd050]  Salvage recovered: +361 cr[/color]",
+				"",
+				"[color=#ffd050]===  Arrived at Barnard's Star  ===[/color]",
+				"[color=#ffd050]Net earned: 9065 credits[/color]",
+				"[color=#ff8844]Crew wages: -1856 cr[/color]"
+			],
+			"promotions": [],
+			"to": "barnard",
+			"to_name": "Barnard's Star",
+			"voyage": 27,
+			"wages": 1856
 		}
 	],
 	"ship_name": "Nship",
@@ -956,6 +1617,46 @@
 		[
 			"station_k",
 			"alpha_cen"
+		],
+		[
+			"alpha_cen",
+			"station_k"
+		],
+		[
+			"station_k",
+			"cygnus"
+		],
+		[
+			"cygnus",
+			"proxima"
+		],
+		[
+			"proxima",
+			"barnard"
+		],
+		[
+			"barnard",
+			"deneb"
+		],
+		[
+			"deneb",
+			"alpha_cen"
+		],
+		[
+			"alpha_cen",
+			"cygnus"
+		],
+		[
+			"cygnus",
+			"cygnus"
+		],
+		[
+			"cygnus",
+			"deneb"
+		],
+		[
+			"deneb",
+			"barnard"
 		]
 	],
 	"version": 1

@@ -26,6 +26,7 @@ var _seg_progress: float = 0.0 # 0..1 within current segment
 var _seg_duration: float = 5.0 # real seconds for this segment (at 1×)
 var _traveling:   bool  = false
 var _time_scale:  float = 1.0
+var _max_speed:   int   = 4    # max speed multiplier (from engine tier)
 
 # ── Day / wear tracking ──────────────────────────────────────────────────────
 var _day_accumulator: float = 0.0  # fractional days elapsed
@@ -73,6 +74,7 @@ const TEX_IRON   := "res://assets/pictures/textures/tex_aged_iron.png"
 # ════════════════════════════════════════════════════════════════════════════
 func setup(params: Dictionary) -> void:
 	_params = params
+	_max_speed = params.get("max_speed", 4)
 
 
 func _ready() -> void:
@@ -1153,7 +1155,7 @@ func _fire_event(ev: Dictionary) -> void:
 				# Security crew in Tactical rooms reduce combat damage
 				var sec_eff := _best_crew_efficiency(crew, "Security", "Tactical")
 				if sec_eff > 0.0:
-					var reduction := int(float(dmg) * sec_eff * 0.3)
+					var reduction := int(float(dmg) * sec_eff * _calc_tactical_mitigation())
 					dmg = maxi(1, dmg - reduction)
 					_log("[color=#44aaff][shield] Security crew mitigated %d damage[/color]" % reduction)
 
@@ -1460,7 +1462,40 @@ func _finish_travel() -> void:
 
 
 func _cycle_speed() -> void:
-	match _time_scale:
-		1.0: _time_scale = 2.0; _btn_speed.text = ">> 2x"
-		2.0: _time_scale = 4.0; _btn_speed.text = ">>> 4x"
-		_:   _time_scale = 1.0; _btn_speed.text = ">  1x"
+	## Cycle through speed multipliers capped by engine tier (_max_speed).
+	var speeds := [1.0, 2.0, 4.0, 6.0, 8.0]
+	var idx := speeds.find(_time_scale)
+	if idx < 0:
+		idx = 0
+	idx = (idx + 1) % speeds.size()
+	# Skip speeds above engine tier cap
+	while speeds[idx] > _max_speed:
+		idx = (idx + 1) % speeds.size()
+	_time_scale = speeds[idx]
+	var lbl := ">  1x"
+	match int(_time_scale):
+		2: lbl = ">> 2x"
+		4: lbl = ">>> 4x"
+		6: lbl = ">>>> 6x"
+		8: lbl = ">>>>> 8x"
+	_btn_speed.text = lbl
+
+
+func _calc_tactical_mitigation() -> float:
+	## Returns mitigation multiplier (0.15 to 0.50) based on total Tactical room cost.
+	## Cheap loadout = 15%, mid = 30% (old default), high = 40%, top = 50%.
+	var total_tac_cost := 0
+	for node in _ship_nodes_ref:
+		var sn := node as ShipNode
+		if sn == null:
+			continue
+		var def := RoomData.find(sn.def_id)
+		if def.get("type", "") == "Tactical":
+			total_tac_cost += def.get("cost", 0)
+	if total_tac_cost >= 2000:
+		return 0.50
+	if total_tac_cost >= 1200:
+		return 0.40
+	if total_tac_cost >= 600:
+		return 0.30
+	return 0.15

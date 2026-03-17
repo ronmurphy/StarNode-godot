@@ -132,6 +132,33 @@ func is_harsh(system_id: String) -> bool:
 	return HARSH_SYSTEMS.has(system_id)
 
 
+func get_price_multiplier(system_id: String) -> float:
+	## Price multiplier based on distance from Sol (origin).
+	## Core = 1.0x, Mid-Ring = 1.25x, Outer = 1.5x, Deep Rim = 2.0x.
+	var sys := find_system(system_id)
+	if sys.is_empty():
+		return 1.0
+	var dist: float = sys.pos.length()
+	if dist < 20.0:
+		return 1.0    # Core (Sol, Proxima, Alpha Cen, Station K, Belt)
+	if dist < 50.0:
+		return 1.25   # Mid-Ring (Sirius, Vega, Rigel, Barnard, New Haven)
+	if dist < 90.0:
+		return 1.5    # Outer (Cygnus, Deneb, Hadley, Polaris, Iron Belt)
+	return 2.0        # Deep Rim (Tartarus, Scylla, Elysium, Frontier, Kronos, The Rim)
+
+
+func get_price_tier_name(system_id: String) -> String:
+	var mult := get_price_multiplier(system_id)
+	if mult <= 1.0:
+		return "Core"
+	if mult <= 1.25:
+		return "Mid-Ring"
+	if mult <= 1.5:
+		return "Outer Rim"
+	return "Deep Rim"
+
+
 # ── Job board ────────────────────────────────────────────────────────────────
 
 const JOB_TYPES: Array = [

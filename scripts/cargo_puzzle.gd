@@ -84,7 +84,8 @@ var _queue_scroll:   ScrollContainer
 
 
 # ── Setup (call before add_child) ────────────────────────────────────────────
-func setup(cargo_count: int, pay_per_day: int, total_pay: int, job_type: String) -> void:
+func setup(cargo_count: int, pay_per_day: int, total_pay: int, job_type: String,
+		cargo_grade: int = 0) -> void:
 	_job_pay_per_day = pay_per_day
 	_job_total_pay   = total_pay
 	_job_type        = job_type
@@ -97,6 +98,8 @@ func setup(cargo_count: int, pay_per_day: int, total_pay: int, job_type: String)
 			grid_size.x += 1
 		else:
 			grid_size.y += 1
+	# Bonus columns from cargo grade (better Utility rooms = bigger grid)
+	grid_size.x += cargo_grade
 	_cols = grid_size.x
 	_rows = grid_size.y
 

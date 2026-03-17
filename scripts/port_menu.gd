@@ -30,6 +30,7 @@ var _ship_nodes: Array = []
 var _current_system: String = ""
 var _result: Dictionary = {}
 var _wages: int = 0
+var _price_mult: float = 1.0
 
 # ── Away missions ────────────────────────────────────────────────────────────
 var _away_missions: Array = []       # available mission listings
@@ -55,6 +56,7 @@ func setup(params: Dictionary) -> void:
 	_result        = params.get("result", {})
 	_wages         = params.get("wages", 0)
 	_ship_nodes    = params.get("ship_nodes", [])
+	_price_mult    = params.get("price_mult", 1.0)
 
 	_start_tab = params.get("start_tab", "summary")
 
@@ -113,6 +115,11 @@ func _build_ui() -> void:
 	var sys := StarMapData.find_system(_current_system)
 	var sys_name: String = sys.get("name", "Unknown") if not sys.is_empty() else "Unknown"
 	header.add_child(_lbl("PORT: %s" % sys_name.to_upper(), 16, _ACCENT))
+
+	# Location price tier label (only show if multiplier > 1.0)
+	if _price_mult > 1.0:
+		var tier_name := StarMapData.get_price_tier_name(_current_system)
+		header.add_child(_lbl("[%s -- %.2gx prices]" % [tier_name, _price_mult], 11, _ORANGE))
 
 	header.add_child(_spacer())
 
@@ -231,7 +238,11 @@ func _build_summary() -> void:
 func _build_repair() -> void:
 	var vb := _content_area as VBoxContainer
 	vb.add_child(_lbl("REPAIR SERVICES", 14, _ACCENT))
-	vb.add_child(_lbl("Cost scales with damage and room value", 10, _DIM))
+	if _price_mult > 1.0:
+		vb.add_child(_lbl("Cost scales with damage and room value -- %s markup (%.2gx)" % [
+			StarMapData.get_price_tier_name(_current_system), _price_mult], 10, _ORANGE))
+	else:
+		vb.add_child(_lbl("Cost scales with damage and room value", 10, _DIM))
 	vb.add_child(_lbl(""))
 
 	var scroll := ScrollContainer.new()
@@ -283,15 +294,16 @@ func _build_repair() -> void:
 		vb.add_child(btn_all)
 
 
-static func _repair_cost(sn: ShipNode, def: Dictionary) -> int:
-	## Cost scales with damage points lost and room cost tier.
+func _repair_cost(sn: ShipNode, def: Dictionary) -> int:
+	## Cost scales with damage points lost, room cost tier, and location multiplier.
 	var damage: int = sn.max_durability - sn.current_durability
 	if damage <= 0:
 		return 0
 	# Rate per durability point: base 0.5 cr + scales with room cost
 	var room_cost: int = def.get("cost", 100)
 	var rate: float = 0.5 + float(room_cost) / 500.0
-	return maxi(5, roundi(float(damage) * rate))
+	var base := maxi(5, roundi(float(damage) * rate))
+	return maxi(5, roundi(float(base) * _price_mult))
 
 
 func _repair_room(sn: ShipNode, def: Dictionary) -> void:
@@ -447,7 +459,7 @@ func _crew_row(cm: Dictionary, is_owned: bool) -> HBoxContainer:
 	else:
 		# Hire button
 		row.add_child(_spacer())
-		var cost := CrewData.hire_cost(cm)
+		var cost := int(float(CrewData.hire_cost(cm)) * _price_mult)
 		var btn := Button.new()
 		btn.text = "Hire (%d cr)" % cost
 		btn.add_theme_font_size_override("font_size", 10)
@@ -459,7 +471,7 @@ func _crew_row(cm: Dictionary, is_owned: bool) -> HBoxContainer:
 
 
 func _hire_crew(cm: Dictionary) -> void:
-	var cost := CrewData.hire_cost(cm)
+	var cost := int(float(CrewData.hire_cost(cm)) * _price_mult)
 	if _credits < cost:
 		return
 	_credits -= cost
@@ -1390,8 +1402,12 @@ func _build_shipyard() -> void:
 	var sys_name: String = sys.get("name", "Unknown") if not sys.is_empty() else "Unknown"
 	var sys_type: String = sys.get("type", "star") if not sys.is_empty() else "star"
 
-	vb.add_child(_lbl("PARTS DEALER — %s" % sys_name, 14, _ACCENT))
-	vb.add_child(_lbl("The local merchant has parts in stock. Not everything — you take what they've got.", 10, _DIM))
+	vb.add_child(_lbl("PARTS DEALER -- %s" % sys_name, 14, _ACCENT))
+	if _price_mult > 1.0:
+		vb.add_child(_lbl("Parts available at %s pricing (%.2gx markup)" % [
+			StarMapData.get_price_tier_name(_current_system), _price_mult], 10, _ORANGE))
+	else:
+		vb.add_child(_lbl("The local merchant has parts in stock. Standard pricing.", 10, _DIM))
 	vb.add_child(_lbl(""))
 
 	# Generate port-specific inventory
@@ -1452,8 +1468,9 @@ func _build_shipyard() -> void:
 			row.add_child(name_lbl)
 
 			row.add_child(_spacer())
-			row.add_child(_lbl("%d cr" % room.cost, 10,
-				_GOLD if _credits >= room.cost else _RED))
+			var adj_cost := int(float(room.cost) * _price_mult)
+			row.add_child(_lbl("%d cr" % adj_cost, 10,
+				_GOLD if _credits >= adj_cost else _RED))
 
 		list.add_child(_lbl(""))
 
