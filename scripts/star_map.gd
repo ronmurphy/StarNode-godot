@@ -1195,7 +1195,7 @@ func _fire_event(ev: Dictionary) -> void:
 			# Security crew mitigation
 			var sec_eff2 := _best_crew_efficiency(crew, "Security", "Tactical")
 			if sec_eff2 > 0.0:
-				var creduction := int(float(cdmg) * sec_eff2 * 0.3)
+				var creduction := int(float(cdmg) * sec_eff2 * _calc_tactical_mitigation())
 				cdmg = maxi(1, cdmg - creduction)
 				_log("[color=#44aaff][shield] Security crew mitigated %d damage[/color]" % creduction)
 
