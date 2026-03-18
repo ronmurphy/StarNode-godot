@@ -119,7 +119,7 @@ func _build_ui() -> void:
 	# Location price tier label (only show if multiplier > 1.0)
 	if _price_mult > 1.0:
 		var tier_name := StarMapData.get_price_tier_name(_current_system)
-		header.add_child(_lbl("[%s -- %.2gx prices]" % [tier_name, _price_mult], 11, _ORANGE))
+		header.add_child(_lbl("[%s -- %.1fx prices]" % [tier_name, _price_mult], 11, _ORANGE))
 
 	header.add_child(_spacer())
 

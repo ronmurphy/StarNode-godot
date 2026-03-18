@@ -48,6 +48,28 @@ var _cam_phase:     int     = 0
 var _cam_midpoint:  Vector3 = Vector3.ZERO  # stationary observation point
 var _cam_travel_dir: Vector3 = Vector3.FORWARD  # overall origin→dest direction
 
+# ── Gunner's Seat (interactive combat) ─────────────────────────────────────
+var _has_gunner_seat:       bool       = false
+var _gunner_active:         bool       = false
+var _gunner_enemies:        Array      = []   # Array of Node3D enemy meshes
+var _gunner_enemy_ts:       Array      = []   # per-enemy approach progress (0→1)
+var _gunner_enemy_offsets:  Array      = []   # per-enemy lateral/vertical spawn offset
+var _gunner_enemy_speeds:   Array      = []   # per-enemy approach speed variation
+var _gunner_crosshair:      Control    = null
+var _gunner_event:          Dictionary = {}
+var _gunner_timer:          float      = 0.0
+var _gunner_shots_left:     int        = 0
+var _gunner_kills:          int        = 0    # how many enemies destroyed
+var _gunner_total:          int        = 0    # how many enemies spawned
+var _gunner_exit_delay:     float      = -1.0 # countdown after all killed / time up
+var _gunner_saved_cam_pos:  Vector3    = Vector3.ZERO
+var _gunner_saved_cam_rot:  Basis      = Basis.IDENTITY
+var _gunner_saved_cam_phase: int       = 0
+var _gunner_lbl_ammo:       Label      = null
+var _gunner_lbl_kills:      Label      = null
+var _gunner_bar_timer:      ColorRect   = null
+var _gunner_bar_bg:         ColorRect   = null
+
 # ── HUD refs ─────────────────────────────────────────────────────────────────
 var _lbl_system:  Label
 var _lbl_route:   Label
@@ -83,6 +105,15 @@ func _ready() -> void:
 	_build_hud()
 	_init_job()
 
+
+func _input(event: InputEvent) -> void:
+	# Gunner mode: intercept left-click BEFORE SubViewportContainer eats it
+	if _gunner_active and event is InputEventMouseButton:
+		var mb := event as InputEventMouseButton
+		if mb.pressed and mb.button_index == MOUSE_BUTTON_LEFT:
+			_gunner_fire()
+			get_viewport().set_input_as_handled()
+			return
 
 func _unhandled_input(event: InputEvent) -> void:
 	if event is InputEventMouseButton:
@@ -419,14 +450,34 @@ func _add_room_lights(container: Node3D, rtype: String, sz: Vector3) -> void:
 
 # ── Combat explosion VFX ─────────────────────────────────────────────────────
 
-func _spawn_explosion(room_idx: int) -> void:
-	## Spawn a fiery explosion burst on the room at `room_idx`.
+func _spawn_explosion(room_idx: int, hazard: bool = false) -> void:
+	## Spawn an explosion burst on the room at `room_idx`.
+	## hazard=true uses blue/white sparks for non-combat damage (asteroids, malfunctions).
 	if room_idx < 0 or room_idx >= _room_containers.size():
 		return
 	var container: Node3D = _room_containers[room_idx]
 
 	# Room is parented to _ship_pivot child (vis) — get world position
 	var world_pos: Vector3 = container.global_position
+
+	# Color palette: combat = red/orange, hazard = blue/electric
+	var flash_color:  Color
+	var flash_emit:   Color
+	var spark_color:  Color
+	var spark_emit:   Color
+	var light_color:  Color
+	if hazard:
+		flash_color = Color(0.4, 0.7, 1.0, 0.95)
+		flash_emit  = Color(0.3, 0.5, 1.0)
+		spark_color = Color(0.5, 0.8, 1.0, 1.0)
+		spark_emit  = Color(0.3, 0.6, 1.0)
+		light_color = Color(0.4, 0.6, 1.0)
+	else:
+		flash_color = Color(1.0, 0.85, 0.3, 0.95)
+		flash_emit  = Color(1.0, 0.6, 0.15)
+		spark_color = Color(1.0, 0.5, 0.1, 1.0)
+		spark_emit  = Color(1.0, 0.4, 0.05)
+		light_color = Color(1.0, 0.6, 0.2)
 
 	# ── Flash sphere (quick bright expand + fade) ────────────────────────
 	var flash := MeshInstance3D.new()
@@ -437,9 +488,9 @@ func _spawn_explosion(room_idx: int) -> void:
 	var flash_mat := StandardMaterial3D.new()
 	flash_mat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
 	flash_mat.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
-	flash_mat.albedo_color = Color(1.0, 0.85, 0.3, 0.95)
+	flash_mat.albedo_color = flash_color
 	flash_mat.emission_enabled = true
-	flash_mat.emission = Color(1.0, 0.6, 0.15)
+	flash_mat.emission = flash_emit
 	flash_mat.emission_energy_multiplier = 4.0
 	flash.set_surface_override_material(0, flash_mat)
 	flash.global_position = world_pos
@@ -453,9 +504,9 @@ func _spawn_explosion(room_idx: int) -> void:
 	var spark_mat := StandardMaterial3D.new()
 	spark_mat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
 	spark_mat.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
-	spark_mat.albedo_color = Color(1.0, 0.5, 0.1, 1.0)
+	spark_mat.albedo_color = spark_color
 	spark_mat.emission_enabled = true
-	spark_mat.emission = Color(1.0, 0.4, 0.05)
+	spark_mat.emission = spark_emit
 	spark_mat.emission_energy_multiplier = 3.0
 	for i in 8:
 		var sp := MeshInstance3D.new()
@@ -472,7 +523,7 @@ func _spawn_explosion(room_idx: int) -> void:
 
 	# ── Omni light flash ────────────────────────────────────────────────
 	var light := OmniLight3D.new()
-	light.light_color = Color(1.0, 0.6, 0.2)
+	light.light_color = light_color
 	light.light_energy = 6.0
 	light.omni_range = 6.0
 	light.global_position = world_pos
@@ -713,6 +764,21 @@ func _init_job() -> void:
 	var cur_sys:    String = _params.get("current_system", "sol")
 	_ship_nodes_ref = _params.get("ship_nodes", [])
 
+	# ── Detect Gunner's Seat ────────────────────────────────────────────────
+	_has_gunner_seat = false
+	for sn in _ship_nodes_ref:
+		if sn is ShipNode and (sn as ShipNode).def_id == "uni_gunner_seat":
+			_has_gunner_seat = true
+			break
+	if _has_gunner_seat:
+		print("[StarMap] Gunner's Seat DETECTED — interactive combat enabled")
+	else:
+		print("[StarMap] No Gunner's Seat — automatic combat")
+		# Debug: print all room IDs so we can verify
+		for sn in _ship_nodes_ref:
+			if sn is ShipNode:
+				print("  room: ", (sn as ShipNode).def_id)
+
 	# ── Build path ──────────────────────────────────────────────────────────
 	var dest_id: String = _params.get("destination_id", "")
 	var dest_sys: Dictionary
@@ -885,7 +951,7 @@ func _pre_roll_events(days: int, node_count: int) -> void:
 				ev = { "at":at, "type":"combat", "amount":dmg, "target_idx":tgt,
 					"attacker": att.name, "sal_min": att.sal_min, "sal_max": att.sal_max }
 			else:
-				# Hazard damage — no counter-fire (asteroid, malfunction, etc.)
+				# Hazard damage — asteroid, malfunction, etc. (no attacker to shoot)
 				ev = { "at":at, "type":"damage", "amount":dmg, "target_idx":tgt }
 		elif roll <= 40:
 			var bonus := rng.randi_range(120, 450)
@@ -903,6 +969,10 @@ func _pre_roll_events(days: int, node_count: int) -> void:
 
 # ── Travel loop ───────────────────────────────────────────────────────────────
 func _process(delta: float) -> void:
+	# ── Gunner mode update (runs alongside travel, not instead of it) ─────
+	if _gunner_active:
+		_gunner_process(delta)
+
 	if not _traveling:
 		return
 
@@ -943,8 +1013,9 @@ func _process(delta: float) -> void:
 		var pulse := 0.88 + sin(Time.get_ticks_msec() * 0.005) * 0.12
 		_engine_glow.scale = Vector3.ONE * pulse
 
-	# ── Camera follow ─────────────────────────────────────────────────────────
-	_update_camera(delta, forward)
+	# ── Camera follow (skip during gunner mode — gunner process handles cam)
+	if not _gunner_active:
+		_update_camera(delta, forward)
 
 	# ── Proximity fade for star systems (real-time delta, not scaled) ─────────
 	_update_system_fades(delta)
@@ -958,6 +1029,9 @@ func _process(delta: float) -> void:
 		if _wp_index >= _waypoints.size() - 1:
 			_ship_pivot.global_position = _waypoints[-1]
 			_traveling = false
+			# End any active gunner combat on arrival
+			if _gunner_active:
+				_exit_gunner_mode()
 			_finish_travel()
 		else:
 			_seg_progress = 0.0
@@ -1143,6 +1217,10 @@ func _check_events() -> void:
 		if _events_done.has(i):
 			continue
 		if norm >= float(_events[i].at):
+			# Don't stack combat events while gunner mode is active —
+			# skip it this frame, it'll fire once the engagement ends
+			if _gunner_active and _events[i].get("type", "") == "combat":
+				continue
 			_fire_event(_events[i])
 			_events_done.append(i)
 
@@ -1188,11 +1266,25 @@ func _fire_event(ev: Dictionary) -> void:
 						_log("[color=#55cc77]* Hull synergy: Tactical adjacency reduced %d damage[/color]" % adj_red)
 
 				target.apply_damage(dmg)
-				_spawn_explosion(idx)
-				_earned -= randi_range(50, 180)
+				_spawn_explosion(idx, true)  # blue hazard explosion
+				_earned -= randi_range(30, 120)
 				_earned  = maxi(0, _earned)
-				_log("[color=#ff5533][!] Combat! -%d dur to [b]%s[/b].[/color]" % [dmg, target.title])
+				var hazard_msgs := [
+					"Asteroid impact",
+					"Micro-meteorite shower",
+					"Radiation surge",
+					"Power conduit overload",
+					"Hull stress fracture",
+					"Debris collision",
+				]
+				var haz_msg: String = hazard_msgs[randi() % hazard_msgs.size()]
+				_log("[color=#5599ff][!] %s! -%d dur to [b]%s[/b].[/color]" % [haz_msg, dmg, target.title])
 		"combat":
+			# ── Gunner's Seat gate: interactive vs automatic combat ──────
+			if _has_gunner_seat and not _gunner_active:
+				_enter_gunner_mode(ev)
+				return
+
 			var cidx: int        = ev.get("target_idx", 0)
 			var attacker: String = ev.get("attacker", "Unknown")
 			var cdmg: int        = ev.get("amount", 10)
@@ -1504,3 +1596,516 @@ func _calc_tactical_mitigation() -> float:
 	if total_tac_cost >= 600:
 		return 0.30
 	return 0.15
+
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# ── Gunner's Seat — Interactive Combat ─────────────────────────────────────────
+# ═══════════════════════════════════════════════════════════════════════════════
+
+const GUNNER_DURATION       := 14.0  # seconds to shoot before enemies arrive
+const GUNNER_HIT_RADIUS     := 2.8   # how close the ray must pass to count as a hit
+const GUNNER_APPROACH_BASE  := 0.065 # base enemy approach rate per second
+const GUNNER_ENEMY_MIN      := 3
+const GUNNER_ENEMY_MAX      := 10
+
+func _enter_gunner_mode(ev: Dictionary) -> void:
+	_gunner_event  = ev
+	_gunner_kills  = 0
+	_gunner_timer  = GUNNER_DURATION
+	_gunner_exit_delay = -1.0
+	_gunner_shots_left = maxi(1, _count_effective_tactical())
+
+	# Clear arrays
+	_gunner_enemies.clear()
+	_gunner_enemy_ts.clear()
+	_gunner_enemy_offsets.clear()
+	_gunner_enemy_speeds.clear()
+
+	# Travel continues — no pause! Combat happens while flying.
+
+	# Save camera state for restoration after combat
+	_gunner_saved_cam_pos   = _camera.global_position
+	_gunner_saved_cam_rot   = _camera.global_transform.basis
+	_gunner_saved_cam_phase = _cam_phase
+
+	# Determine enemy count: 3-10, scaled slightly by pay tier
+	var pay: int = _params.get("job_pay_per_day", 0)
+	var pay_tier: int = clampi(pay / 50, 0, 3)
+	var enemy_count: int = randi_range(GUNNER_ENEMY_MIN, mini(GUNNER_ENEMY_MAX, GUNNER_ENEMY_MIN + 2 + pay_tier * 2))
+	_gunner_total = enemy_count
+
+	# More enemies = more shots (bonus on top of tactical rooms)
+	_gunner_shots_left += enemy_count / 2
+
+	# Log alert
+	var attacker: String = ev.get("attacker", "Unknown")
+	_log("")
+	_log("[color=#ff4444][b][ALERT][/b] Multiple hostiles — %s squadron, %d contacts![/color]" % [attacker, enemy_count])
+	_log("[color=#ffcc44]  Manning the guns! %d shot(s) available.[/color]" % _gunner_shots_left)
+
+	# Spawn enemies in a spread formation ahead of the ship
+	var fwd  := -_ship_pivot.global_transform.basis.z.normalized()
+	var ship_pos := _ship_pivot.global_position
+
+	for i in enemy_count:
+		var enemy := ShipBuilder3D.build_enemy_ship(attacker)
+		_world.add_child(enemy)
+
+		# Spread: each enemy gets a unique lateral + vertical offset
+		var lat_offset  := randf_range(-8.0, 8.0)
+		var vert_offset := randf_range(-3.0, 3.0)
+		# Stagger depth: some start further out, some closer
+		var depth_offset := randf_range(30.0, 50.0)
+
+		var start_pos := ship_pos + fwd * depth_offset
+		enemy.global_position = start_pos
+		# Face toward the ship (in tree, safe to call look_at)
+		if start_pos.distance_squared_to(ship_pos) > 0.1:
+			enemy.look_at(ship_pos, Vector3.UP)
+
+		_gunner_enemies.append(enemy)
+		_gunner_enemy_ts.append(0.0)
+		_gunner_enemy_offsets.append(Vector3(lat_offset, vert_offset, depth_offset))
+		# Each enemy has slightly different approach speed for visual variety
+		_gunner_enemy_speeds.append(GUNNER_APPROACH_BASE + randf_range(-0.015, 0.025))
+
+	# Activate gunner mode immediately — _gunner_process will handle camera
+	_gunner_active = true
+
+	# Build crosshair & HUD overlay
+	_build_gunner_hud()
+
+
+func _build_gunner_hud() -> void:
+	_gunner_crosshair = Control.new()
+	_gunner_crosshair.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	_gunner_crosshair.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	add_child(_gunner_crosshair)
+
+	# Crosshair center — drawn via a custom _draw node
+	var xhair := _GunnerCrosshair.new()
+	xhair.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	xhair.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	xhair.star_map = self
+	_gunner_crosshair.add_child(xhair)
+
+	# Timer bar background — positioned manually (no preset to avoid anchor warning)
+	_gunner_bar_bg = ColorRect.new()
+	_gunner_bar_bg.color = Color(0.15, 0.15, 0.15, 0.6)
+	_gunner_bar_bg.anchor_left = 0.0
+	_gunner_bar_bg.anchor_right = 1.0
+	_gunner_bar_bg.anchor_top = 0.0
+	_gunner_bar_bg.anchor_bottom = 0.0
+	_gunner_bar_bg.offset_top = 55.0
+	_gunner_bar_bg.offset_bottom = 61.0
+	_gunner_bar_bg.offset_left = 0.0
+	_gunner_bar_bg.offset_right = 0.0
+	_gunner_crosshair.add_child(_gunner_bar_bg)
+
+	# Timer bar fill — stretches inside background, anchor_right shrinks as time runs out
+	_gunner_bar_timer = ColorRect.new()
+	_gunner_bar_timer.color = Color(0.2, 0.85, 0.95, 0.9)
+	_gunner_bar_timer.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	_gunner_bar_bg.add_child(_gunner_bar_timer)
+
+	# Ammo label (bottom-left)
+	_gunner_lbl_ammo = Label.new()
+	_gunner_lbl_ammo.text = "SHOTS: %d" % _gunner_shots_left
+	_gunner_lbl_ammo.add_theme_font_size_override("font_size", 16)
+	_gunner_lbl_ammo.add_theme_color_override("font_color", Color(0.2, 0.9, 1.0, 1.0))
+	_gunner_lbl_ammo.set_anchors_and_offsets_preset(Control.PRESET_BOTTOM_LEFT)
+	_gunner_lbl_ammo.offset_left = 16
+	_gunner_lbl_ammo.offset_bottom = -130
+	_gunner_crosshair.add_child(_gunner_lbl_ammo)
+
+	# Kills counter (bottom-right)
+	_gunner_lbl_kills = Label.new()
+	_gunner_lbl_kills.text = "KILLS: 0 / %d" % _gunner_total
+	_gunner_lbl_kills.add_theme_font_size_override("font_size", 16)
+	_gunner_lbl_kills.add_theme_color_override("font_color", Color(1.0, 0.5, 0.2, 1.0))
+	_gunner_lbl_kills.set_anchors_and_offsets_preset(Control.PRESET_BOTTOM_RIGHT)
+	_gunner_lbl_kills.offset_right = -16
+	_gunner_lbl_kills.offset_bottom = -130
+	_gunner_lbl_kills.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
+	_gunner_crosshair.add_child(_gunner_lbl_kills)
+
+	# Attacker name + count label (top center)
+	var attacker_name: String = _gunner_event.get("attacker", "HOSTILE")
+	var lbl_enemy := Label.new()
+	lbl_enemy.text = "%s SQUADRON — %d CONTACTS" % [attacker_name.to_upper(), _gunner_total]
+	lbl_enemy.add_theme_font_size_override("font_size", 14)
+	lbl_enemy.add_theme_color_override("font_color", Color(1.0, 0.35, 0.3, 0.9))
+	lbl_enemy.set_anchors_and_offsets_preset(Control.PRESET_CENTER_TOP)
+	lbl_enemy.offset_top = 70
+	lbl_enemy.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	_gunner_crosshair.add_child(lbl_enemy)
+
+
+func _gunner_process(delta: float) -> void:
+	var ship_pos := _ship_pivot.global_position
+	var fwd := -_ship_pivot.global_transform.basis.z.normalized()
+	var side := _ship_pivot.global_transform.basis.x.normalized()
+
+	# ── Exit delay countdown (after all killed or time expired) ──────────
+	if _gunner_exit_delay >= 0.0:
+		_gunner_exit_delay -= delta
+		# Keep camera forward while waiting
+		var cam_target := ship_pos + fwd * 2.0 + Vector3.UP * 1.2
+		_camera.global_position = _camera.global_position.lerp(cam_target, delta * 8.0)
+		_camera.look_at(ship_pos + fwd * 30.0, Vector3.UP)
+		if _gunner_exit_delay <= 0.0:
+			_exit_gunner_mode()
+		return
+
+	# ── Count living enemies ─────────────────────────────────────────────
+	var alive_count := 0
+	for e in _gunner_enemies:
+		if is_instance_valid(e):
+			alive_count += 1
+
+	# All enemies destroyed — start exit delay
+	if alive_count == 0:
+		_gunner_exit_delay = 1.0
+		return
+
+	# ── Countdown timer ──────────────────────────────────────────────────
+	_gunner_timer -= delta
+	var frac := clampf(_gunner_timer / GUNNER_DURATION, 0.0, 1.0)
+	if is_instance_valid(_gunner_bar_timer):
+		_gunner_bar_timer.anchor_right = frac
+		if frac > 0.5:
+			_gunner_bar_timer.color = Color(0.2, 0.85, 0.95, 0.9)
+		elif frac > 0.25:
+			_gunner_bar_timer.color = Color(0.95, 0.65, 0.15, 0.9)
+		else:
+			_gunner_bar_timer.color = Color(0.95, 0.2, 0.15, 0.9)
+
+	# ── Move each enemy toward ship with individual weaving ──────────────
+	var elapsed := GUNNER_DURATION - _gunner_timer
+	var any_arrived := false
+
+	for i in _gunner_enemies.size():
+		if not is_instance_valid(_gunner_enemies[i]):
+			continue
+		var enemy: Node3D = _gunner_enemies[i]
+
+		_gunner_enemy_ts[i] += delta * _gunner_enemy_speeds[i]
+		var offset: Vector3 = _gunner_enemy_offsets[i]
+
+		# Approach: stagger start depth → close to 3 units ahead
+		var dist_ahead := lerpf(offset.z, 3.0, minf(_gunner_enemy_ts[i], 1.0))
+		var base_pos := ship_pos + fwd * dist_ahead
+
+		# Weave: each enemy gets a unique phase based on its index
+		var phase := float(i) * 1.7
+		var weave_x := sin(elapsed * 1.8 + phase) * 2.5 + offset.x * (1.0 - minf(_gunner_enemy_ts[i], 1.0))
+		var weave_y := cos(elapsed * 2.3 + phase) * 1.2 + offset.y * (1.0 - minf(_gunner_enemy_ts[i], 1.0))
+		enemy.global_position = base_pos + side * weave_x + Vector3.UP * weave_y
+
+		# Face the ship
+		var to_ship := ship_pos - enemy.global_position
+		if to_ship.length_squared() > 0.1:
+			enemy.look_at(ship_pos, Vector3.UP)
+
+		if _gunner_enemy_ts[i] >= 1.0:
+			any_arrived = true
+
+	# ── Camera: cockpit POV, look toward center of living enemies ────────
+	var cam_target_pos := ship_pos + fwd * 2.0 + Vector3.UP * 1.2
+	_camera.global_position = _camera.global_position.lerp(cam_target_pos, delta * 8.0)
+	# Look at the centroid of living enemies for natural tracking
+	var centroid := Vector3.ZERO
+	var cnt := 0
+	for e in _gunner_enemies:
+		if is_instance_valid(e):
+			centroid += e.global_position
+			cnt += 1
+	if cnt > 0:
+		centroid /= float(cnt)
+		if centroid.distance_squared_to(_camera.global_position) > 0.1:
+			var look_xf := _camera.global_transform.looking_at(centroid, Vector3.UP)
+			_camera.global_transform = _camera.global_transform.interpolate_with(look_xf, delta * 5.0)
+
+	# ── Timer expired or enemies arrived → end combat ────────────────────
+	if _gunner_timer <= 0.0 or any_arrived:
+		var survivors := alive_count
+		_log("[color=#ff6644]  %d hostiles broke through![/color]" % survivors)
+		_exit_gunner_mode()
+		return
+
+
+func _gunner_fire() -> void:
+	if _gunner_shots_left <= 0 or not _gunner_active:
+		return
+
+	_gunner_shots_left -= 1
+	if is_instance_valid(_gunner_lbl_ammo):
+		_gunner_lbl_ammo.text = "SHOTS: %d" % _gunner_shots_left
+		_gunner_lbl_ammo.modulate = Color(1, 1, 1, 1) if _gunner_shots_left > 0 \
+			else Color(1.0, 0.3, 0.3, 1.0)
+
+	# Get mouse position in the SubViewport
+	var mouse_pos := get_viewport().get_mouse_position()
+	var vp_size := _viewport.size
+	var vp_mouse := Vector2(
+		clampf(mouse_pos.x, 0, vp_size.x),
+		clampf(mouse_pos.y, 0, vp_size.y))
+
+	# Cast ray from camera
+	var ray_origin := _camera.project_ray_origin(vp_mouse)
+	var ray_dir    := _camera.project_ray_normal(vp_mouse)
+
+	# Fire bolt VFX from ship toward the ray direction
+	var ship_fwd := -_ship_pivot.global_transform.basis.z.normalized()
+	var bolt_origin := _ship_pivot.global_position + ship_fwd * 2.5 + Vector3.UP * 0.5
+	var bolt_target := ray_origin + ray_dir * 45.0
+	_spawn_gunner_bolt(bolt_origin, bolt_target)
+
+	# Hit check: find the closest enemy to the ray
+	var best_idx := -1
+	var best_dist := INF
+	for i in _gunner_enemies.size():
+		if not is_instance_valid(_gunner_enemies[i]):
+			continue
+		var enemy: Node3D = _gunner_enemies[i]
+		var enemy_pos := enemy.global_position
+		var to_enemy  := enemy_pos - ray_origin
+		var proj      := to_enemy.dot(ray_dir)
+		if proj <= 0.0:
+			continue  # behind camera
+		var closest := ray_origin + ray_dir * proj
+		var dist    := closest.distance_to(enemy_pos)
+		if dist <= GUNNER_HIT_RADIUS and dist < best_dist:
+			best_dist = dist
+			best_idx  = i
+
+	if best_idx >= 0 and is_instance_valid(_gunner_enemies[best_idx]):
+		# HIT!
+		var hit_enemy: Node3D = _gunner_enemies[best_idx]
+		_gunner_kills += 1
+		_log("[color=#44ff88][b]** HIT! **[/b] Target destroyed! (%d/%d)[/color]" % [_gunner_kills, _gunner_total])
+		_spawn_gunner_explosion(hit_enemy.global_position)
+		hit_enemy.queue_free()
+
+		# Update kills display
+		if is_instance_valid(_gunner_lbl_kills):
+			_gunner_lbl_kills.text = "KILLS: %d / %d" % [_gunner_kills, _gunner_total]
+			if _gunner_kills == _gunner_total:
+				_gunner_lbl_kills.add_theme_color_override("font_color", Color(0.3, 1.0, 0.4, 1.0))
+
+		# Check if all enemies destroyed
+		var alive := 0
+		for e in _gunner_enemies:
+			if is_instance_valid(e):
+				alive += 1
+		if alive == 0:
+			_log("[color=#44ff88][b]** ALL HOSTILES ELIMINATED! **[/b][/color]")
+	else:
+		# MISS
+		if _gunner_shots_left <= 0:
+			_log("[color=#ff5533]  Out of ammo! Brace for impact![/color]")
+
+
+func _spawn_gunner_bolt(from_pos: Vector3, to_pos: Vector3) -> void:
+	## Fire a bright cyan energy bolt from the ship toward the target.
+	var bolt := MeshInstance3D.new()
+	var cyl  := CylinderMesh.new()
+	cyl.top_radius    = 0.06;  cyl.bottom_radius = 0.06
+	cyl.height        = 1.2;   cyl.radial_segments = 6
+	bolt.mesh = cyl
+	var bmat := StandardMaterial3D.new()
+	bmat.shading_mode              = BaseMaterial3D.SHADING_MODE_UNSHADED
+	bmat.albedo_color              = Color(0.3, 0.9, 1.0, 1.0)
+	bmat.emission_enabled          = true
+	bmat.emission                  = Color(0.2, 0.8, 1.0)
+	bmat.emission_energy_multiplier = 6.0
+	bmat.transparency              = BaseMaterial3D.TRANSPARENCY_ALPHA
+	bolt.set_surface_override_material(0, bmat)
+	bolt.global_position = from_pos
+	if to_pos.distance_squared_to(from_pos) > 0.01:
+		bolt.look_at(to_pos, Vector3.UP)
+		bolt.rotate_object_local(Vector3.RIGHT, deg_to_rad(90.0))
+	_world.add_child(bolt)
+
+	var tw := create_tween()
+	tw.tween_property(bolt, "global_position", to_pos, 0.25).set_ease(Tween.EASE_IN)
+	tw.tween_callback(bolt.queue_free)
+
+
+func _spawn_gunner_explosion(pos: Vector3) -> void:
+	## Big explosion burst at the enemy position when the shot connects.
+	var flash := MeshInstance3D.new()
+	var sphere := SphereMesh.new()
+	sphere.radius = 0.8;  sphere.height = 1.6
+	sphere.radial_segments = 12;  sphere.rings = 6
+	flash.mesh = sphere
+	var fmat := StandardMaterial3D.new()
+	fmat.shading_mode              = BaseMaterial3D.SHADING_MODE_UNSHADED
+	fmat.transparency              = BaseMaterial3D.TRANSPARENCY_ALPHA
+	fmat.albedo_color              = Color(1.0, 0.7, 0.2, 0.95)
+	fmat.emission_enabled          = true
+	fmat.emission                  = Color(1.0, 0.5, 0.1)
+	fmat.emission_energy_multiplier = 8.0
+	flash.set_surface_override_material(0, fmat)
+	flash.global_position = pos
+	_world.add_child(flash)
+
+	# Secondary debris flash (white-hot core)
+	var core := MeshInstance3D.new()
+	var core_s := SphereMesh.new()
+	core_s.radius = 0.3;  core_s.height = 0.6
+	core.mesh = core_s
+	var cmat := StandardMaterial3D.new()
+	cmat.shading_mode              = BaseMaterial3D.SHADING_MODE_UNSHADED
+	cmat.transparency              = BaseMaterial3D.TRANSPARENCY_ALPHA
+	cmat.albedo_color              = Color(1.0, 1.0, 0.9, 1.0)
+	cmat.emission_enabled          = true
+	cmat.emission                  = Color(1.0, 0.95, 0.8)
+	cmat.emission_energy_multiplier = 12.0
+	core.set_surface_override_material(0, cmat)
+	core.global_position = pos
+	_world.add_child(core)
+
+	var light := OmniLight3D.new()
+	light.light_color  = Color(1.0, 0.6, 0.2)
+	light.light_energy = 8.0
+	light.omni_range   = 15.0
+	light.global_position = pos
+	_world.add_child(light)
+
+	var tw := create_tween()
+	tw.set_parallel(true)
+	tw.tween_property(flash, "scale", Vector3(6.0, 6.0, 6.0), 0.7).set_ease(Tween.EASE_OUT)
+	tw.tween_property(fmat,  "albedo_color:a", 0.0, 0.6).set_delay(0.1)
+	tw.tween_property(core,  "scale", Vector3(3.5, 3.5, 3.5), 0.4).set_ease(Tween.EASE_OUT)
+	tw.tween_property(cmat,  "albedo_color:a", 0.0, 0.35).set_delay(0.15)
+	tw.tween_property(light, "light_energy", 0.0, 0.8)
+	tw.set_parallel(false)
+	tw.tween_callback(func():
+		flash.queue_free()
+		core.queue_free()
+		light.queue_free())
+
+
+func _exit_gunner_mode() -> void:
+	_gunner_active = false
+
+	# Remove crosshair overlay
+	if is_instance_valid(_gunner_crosshair):
+		_gunner_crosshair.queue_free()
+		_gunner_crosshair = null
+
+	# Remove any surviving enemy meshes
+	for e in _gunner_enemies:
+		if is_instance_valid(e):
+			e.queue_free()
+
+	# Count survivors for damage scaling
+	var survivors: int = _gunner_total - _gunner_kills
+
+	# Resolve outcome
+	if survivors == 0:
+		# Player wiped them all — award full salvage per kill
+		var sal_per := randi_range(
+			_gunner_event.get("sal_min", 50),
+			_gunner_event.get("sal_max", 200))
+		var total_sal := sal_per * _gunner_total
+		_earned += total_sal
+		_log("[color=#ffd050]  Salvage recovered: +%d cr (%d kills)[/color]" % [total_sal, _gunner_total])
+	else:
+		# Survivors strafe the ship — damage scales with how many got through
+		var crew: Array = _params.get("crew", [])
+		var base_dmg: int = _gunner_event.get("amount", 10)
+		var attacker: String = _gunner_event.get("attacker", "Unknown")
+
+		# Award partial salvage for kills
+		if _gunner_kills > 0:
+			var sal_per := randi_range(
+				_gunner_event.get("sal_min", 50),
+				_gunner_event.get("sal_max", 200))
+			var partial_sal := sal_per * _gunner_kills
+			_earned += partial_sal
+			_log("[color=#ffd050]  Partial salvage: +%d cr (%d kills)[/color]" % [partial_sal, _gunner_kills])
+
+		# Each survivor does a strafing run — damage proportional to survivors
+		var dmg_mult := float(survivors) / float(_gunner_total)
+		var total_dmg := maxi(1, int(float(base_dmg) * (0.5 + dmg_mult)))
+
+		# Security crew mitigation
+		var sec_eff := _best_crew_efficiency(crew, "Security", "Tactical")
+		if sec_eff > 0.0:
+			var reduction := int(float(total_dmg) * sec_eff * _calc_tactical_mitigation())
+			total_dmg = maxi(1, total_dmg - reduction)
+			_log("[color=#44aaff][shield] Security crew mitigated %d damage[/color]" % reduction)
+
+		# Tactical adjacency damage reduction
+		var cadj_pct := 0.0
+		for cnode in _ship_nodes_ref:
+			var csn := cnode as ShipNode
+			if csn == null: continue
+			var csn_def := RoomData.find(csn.def_id)
+			if csn_def.is_empty(): continue
+			if csn_def.get("type", "") != "Tactical": continue
+			var cneighbors: Array = _adjacencies.get(csn.node_uid, [])
+			for cadj in cneighbors:
+				var cadj_type: String = (cadj as Dictionary).get("type", "")
+				if cadj_type == "Command":  cadj_pct += 0.10
+				elif cadj_type == "Power":  cadj_pct += 0.05
+		cadj_pct = minf(cadj_pct, 0.25)
+		if cadj_pct > 0.0:
+			var cadj_red := int(float(total_dmg) * cadj_pct)
+			if cadj_red > 0:
+				total_dmg = maxi(1, total_dmg - cadj_red)
+				_log("[color=#55cc77]* Hull synergy: Tactical adjacency reduced %d damage[/color]" % cadj_red)
+
+		# Spread damage across random rooms (one hit per survivor)
+		for _s in survivors:
+			if _ship_nodes_ref.is_empty():
+				break
+			var tgt := randi_range(0, _ship_nodes_ref.size() - 1)
+			var hit_dmg := maxi(1, total_dmg / survivors)
+			var ctarget := _ship_nodes_ref[tgt] as ShipNode
+			if ctarget != null:
+				ctarget.apply_damage(hit_dmg)
+				_spawn_explosion(tgt)
+		_log("[color=#ff5533][!] [b]%s[/b] — %d survivors strafing! -%d total damage[/color]" \
+			% [attacker, survivors, total_dmg])
+		_earned -= randi_range(50, 180)
+		_earned  = maxi(0, _earned)
+
+	# Clear enemy arrays
+	_gunner_enemies.clear()
+	_gunner_enemy_ts.clear()
+	_gunner_enemy_offsets.clear()
+	_gunner_enemy_speeds.clear()
+
+	# Restore camera phase — _update_camera in _process will smoothly
+	# lerp the camera back to chase position on its own
+	_cam_phase = _gunner_saved_cam_phase
+	_log("[color=#88aaff]  Returning to helm.[/color]")
+	_log("")
+
+
+# ── Crosshair draw node (inner class) ──────────────────────────────────────
+class _GunnerCrosshair extends Control:
+	var star_map: StarMap = null
+
+	func _process(_delta: float) -> void:
+		queue_redraw()
+
+	func _draw() -> void:
+		if star_map == null or not star_map._gunner_active:
+			return
+		var mouse := get_viewport().get_mouse_position()
+		var has_ammo := star_map._gunner_shots_left > 0
+		var col := Color(0.2, 0.9, 1.0, 0.85) if has_ammo else Color(1.0, 0.25, 0.2, 0.7)
+
+		# Outer ring
+		draw_arc(mouse, 22.0, 0, TAU, 32, col, 2.0)
+		# Inner dot
+		draw_circle(mouse, 3.0, col)
+		# Cross lines
+		draw_line(mouse + Vector2(-30, 0), mouse + Vector2(-10, 0), col, 1.5)
+		draw_line(mouse + Vector2(10, 0),  mouse + Vector2(30, 0),  col, 1.5)
+		draw_line(mouse + Vector2(0, -30), mouse + Vector2(0, -10), col, 1.5)
+		draw_line(mouse + Vector2(0, 10),  mouse + Vector2(0, 30),  col, 1.5)

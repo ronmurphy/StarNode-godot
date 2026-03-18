@@ -93,6 +93,7 @@ const ROOMS: Array = [
 	{ "id":"uni_hull_sec",     "name":"Secondary Hull",      "universe":"Universal",  "type":"Utility",  "cost":100,  "power":-3,   "durability":90,  "desc":"Secondary hull section." },
 	{ "id":"uni_airlock",      "name":"Airlock",             "universe":"Universal",  "type":"Utility",  "cost":80,   "power":-5,   "durability":75,  "desc":"Standard pressurized airlock." },
 	{ "id":"uni_crew",         "name":"Crew Quarters",       "universe":"Universal",  "type":"Utility",  "cost":120,  "power":-15,  "durability":70,  "desc":"Standard crew living quarters." },
+	{ "id":"uni_gunner_seat",  "name":"Gunner's Seat",       "universe":"Universal",  "type":"Tactical", "cost":350,  "power":-80,  "durability":65,  "desc":"Manual weapons console. Enables interactive combat targeting during flight." },
 ]
 
 const UNIVERSES: Array = ["All", "Star Trek", "Star Wars", "Babylon 5", "Dune", "BSG", "The Expanse", "Mass Effect", "Mercs", "Universal"]

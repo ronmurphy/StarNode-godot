@@ -690,3 +690,154 @@ static func _omni(parent: Node3D, col: Color, energy: float, rng: float,
 	light.shadow_enabled            = false
 	light.position                  = pos
 	parent.add_child(light)
+
+
+# ── Enemy ship builder (for Gunner's Seat interactive combat) ────────────────
+
+static func build_enemy_ship(attacker_name: String) -> Node3D:
+	## Build a simple 3D enemy ship mesh based on attacker type name.
+	var root := Node3D.new()
+	root.name = "EnemyShip"
+
+	match attacker_name:
+		"Pirate Scout":   _build_pirate_scout(root)
+		"Raider":         _build_raider(root)
+		"Bounty Hunter":  _build_bounty_hunter(root)
+		"Patrol Craft":   _build_patrol_craft(root)
+		_:                _build_pirate_scout(root)  # fallback
+	return root
+
+
+static func _enemy_hull_mat(col: Color) -> StandardMaterial3D:
+	var m := StandardMaterial3D.new()
+	m.albedo_color  = col
+	m.metallic      = 0.60
+	m.roughness     = 0.45
+	return m
+
+
+static func _build_pirate_scout(root: Node3D) -> void:
+	## Small angular wedge — fast and light, dark red/rust
+	var hull_col := Color(0.55, 0.18, 0.12)
+	var mat := _enemy_hull_mat(hull_col)
+
+	# Main wedge body
+	add_mi(root, box_mesh(Vector3(1.0, 0.35, 2.2)), mat, Vector3.ZERO)
+	# Angled nose — narrower front
+	var nose_mat := _enemy_hull_mat(hull_col.lightened(0.1))
+	add_mi(root, box_mesh(Vector3(0.6, 0.25, 1.0)), nose_mat, Vector3(0, 0, -1.4))
+	# Cockpit bubble
+	var glass := glow_mat(Color(0.9, 0.3, 0.2), 1.5)
+	var cockpit := SphereMesh.new()
+	cockpit.radius = 0.2
+	cockpit.height = 0.4
+	add_mi(root, cockpit, glass, Vector3(0, 0.22, -0.8))
+	# Engine glow
+	var eng := glow_mat(Color(1.0, 0.5, 0.15), 3.0)
+	var eng_mesh := SphereMesh.new()
+	eng_mesh.radius = 0.25
+	eng_mesh.height = 0.5
+	add_mi(root, eng_mesh, eng, Vector3(0, 0, 1.3))
+	_omni(root, Color(1.0, 0.5, 0.15), 2.0, 4.0, Vector3(0, 0, 1.3))
+
+
+static func _build_raider(root: Node3D) -> void:
+	## Medium bulky hull, twin engines, armor plates — gunmetal grey
+	var hull_col := Color(0.35, 0.35, 0.38)
+	var mat := _enemy_hull_mat(hull_col)
+
+	# Main body — boxy and thick
+	add_mi(root, box_mesh(Vector3(1.6, 0.55, 2.8)), mat, Vector3.ZERO)
+	# Armor plates on sides
+	var armor := _enemy_hull_mat(hull_col.darkened(0.2))
+	add_mi(root, box_mesh(Vector3(0.2, 0.45, 1.8)), armor, Vector3(0.95, 0, 0.2))
+	add_mi(root, box_mesh(Vector3(0.2, 0.45, 1.8)), armor, Vector3(-0.95, 0, 0.2))
+	# Twin engines
+	var eng := glow_mat(Color(0.9, 0.4, 0.1), 3.5)
+	var eng_mesh := CylinderMesh.new()
+	eng_mesh.top_radius = 0.22
+	eng_mesh.bottom_radius = 0.28
+	eng_mesh.height = 0.6
+	var e1 := add_mi(root, eng_mesh, eng, Vector3(0.55, 0, 1.6))
+	e1.rotate_x(deg_to_rad(90))
+	var e2 := add_mi(root, eng_mesh, eng, Vector3(-0.55, 0, 1.6))
+	e2.rotate_x(deg_to_rad(90))
+	_omni(root, Color(0.9, 0.4, 0.1), 2.5, 5.0, Vector3(0, 0, 1.6))
+	# Nose ram
+	add_mi(root, box_mesh(Vector3(0.8, 0.35, 0.6)), armor, Vector3(0, 0, -1.6))
+
+
+static func _build_bounty_hunter(root: Node3D) -> void:
+	## Sleek narrow hull, big engine, antenna — dark purple
+	var hull_col := Color(0.30, 0.15, 0.40)
+	var mat := _enemy_hull_mat(hull_col)
+
+	# Sleek main body — narrow and long
+	add_mi(root, box_mesh(Vector3(0.9, 0.40, 3.0)), mat, Vector3.ZERO)
+	# Tapered nose
+	var nose_mat := _enemy_hull_mat(hull_col.lightened(0.15))
+	add_mi(root, box_mesh(Vector3(0.5, 0.28, 1.2)), nose_mat, Vector3(0, 0, -1.8))
+	# Cockpit — tinted glass
+	var glass := glow_mat(Color(0.6, 0.3, 0.9), 2.0)
+	var cockpit := SphereMesh.new()
+	cockpit.radius = 0.18
+	cockpit.height = 0.36
+	add_mi(root, cockpit, glass, Vector3(0, 0.24, -1.0))
+	# Big single engine
+	var eng := glow_mat(Color(0.7, 0.3, 1.0), 4.0)
+	var eng_mesh := SphereMesh.new()
+	eng_mesh.radius = 0.35
+	eng_mesh.height = 0.7
+	add_mi(root, eng_mesh, eng, Vector3(0, 0, 1.7))
+	_omni(root, Color(0.7, 0.3, 1.0), 3.0, 6.0, Vector3(0, 0, 1.7))
+	# Antenna mast
+	var ant_mat := _enemy_hull_mat(Color(0.5, 0.5, 0.55))
+	var ant := CylinderMesh.new()
+	ant.top_radius = 0.02
+	ant.bottom_radius = 0.03
+	ant.height = 1.0
+	add_mi(root, ant, ant_mat, Vector3(0.15, 0.65, 0.3))
+	# Sensor dish on antenna
+	var dish := CylinderMesh.new()
+	dish.top_radius = 0.15
+	dish.bottom_radius = 0.02
+	dish.height = 0.08
+	add_mi(root, dish, ant_mat, Vector3(0.15, 1.15, 0.3))
+
+
+static func _build_patrol_craft(root: Node3D) -> void:
+	## Wide flat hull, twin nacelles, running lights — navy blue
+	var hull_col := Color(0.12, 0.18, 0.35)
+	var mat := _enemy_hull_mat(hull_col)
+
+	# Wide flat main hull
+	add_mi(root, box_mesh(Vector3(2.2, 0.40, 2.4)), mat, Vector3.ZERO)
+	# Bridge section on top
+	var bridge_mat := _enemy_hull_mat(hull_col.lightened(0.1))
+	add_mi(root, box_mesh(Vector3(0.8, 0.30, 0.9)), bridge_mat, Vector3(0, 0.35, -0.4))
+	# Bridge window
+	var glass := glow_mat(Color(0.3, 0.6, 1.0), 1.5)
+	add_mi(root, box_mesh(Vector3(0.6, 0.12, 0.05)), glass, Vector3(0, 0.42, -0.85))
+	# Twin nacelles on pylons
+	var nacelle_mat := _enemy_hull_mat(hull_col.darkened(0.15))
+	add_mi(root, box_mesh(Vector3(0.35, 0.30, 2.0)), nacelle_mat, Vector3(1.4, 0.15, 0.2))
+	add_mi(root, box_mesh(Vector3(0.35, 0.30, 2.0)), nacelle_mat, Vector3(-1.4, 0.15, 0.2))
+	# Pylons connecting nacelles
+	add_mi(root, box_mesh(Vector3(0.5, 0.08, 0.25)), mat, Vector3(0.9, 0.08, 0))
+	add_mi(root, box_mesh(Vector3(0.5, 0.08, 0.25)), mat, Vector3(-0.9, 0.08, 0))
+	# Engine glows on nacelles
+	var eng := glow_mat(Color(0.3, 0.5, 1.0), 3.5)
+	var eng_mesh := SphereMesh.new()
+	eng_mesh.radius = 0.18
+	eng_mesh.height = 0.36
+	add_mi(root, eng_mesh, eng, Vector3(1.4, 0.15, 1.4))
+	add_mi(root, eng_mesh, eng, Vector3(-1.4, 0.15, 1.4))
+	_omni(root, Color(0.3, 0.5, 1.0), 2.0, 5.0, Vector3(0, 0.15, 1.4))
+	# Running lights — red port, green starboard
+	var red := glow_mat(Color(1.0, 0.1, 0.1), 2.0)
+	var grn := glow_mat(Color(0.1, 1.0, 0.2), 2.0)
+	var dot := SphereMesh.new()
+	dot.radius = 0.06
+	dot.height = 0.12
+	add_mi(root, dot, red, Vector3(-1.58, 0.15, -0.6))
+	add_mi(root, dot, grn, Vector3(1.58, 0.15, -0.6))
