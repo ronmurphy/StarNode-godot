@@ -119,7 +119,7 @@ func _build_ui() -> void:
 	# Location price tier label (only show if multiplier > 1.0)
 	if _price_mult > 1.0:
 		var tier_name := StarMapData.get_price_tier_name(_current_system)
-		header.add_child(_lbl("[%s -- %.1fx prices]" % [tier_name, _price_mult], 11, _ORANGE))
+		header.add_child(_lbl("[%s -- %s prices]" % [tier_name, "%.1fx" % _price_mult], 11, _ORANGE))
 
 	header.add_child(_spacer())
 
@@ -203,13 +203,17 @@ func _build_summary() -> void:
 	vb.add_child(_lbl("Journey: %d days" % days, 12, _TEXT))
 	vb.add_child(_lbl(""))
 
+	var fuel: int = _result.get("fuel_cost", 0)
 	vb.add_child(_lbl("Gross earnings: +%d cr" % earned, 12, _GREEN))
+	if fuel > 0:
+		vb.add_child(_lbl("Fuel cost (pre-departure): -%d cr" % fuel, 12, _RED))
 	if _wages > 0:
 		vb.add_child(_lbl("Crew wages (%d crew x %d days x %d cr/day): -%d cr" % [
 			_crew.size(), days, CrewData.WAGE_PER_DAY, _wages], 12, _RED))
+	var total_costs: int = fuel + _wages
 	vb.add_child(_lbl("Net income: %s%d cr" % [
-		"+" if earned - _wages >= 0 else "", earned - _wages], 12,
-		_GOLD if earned - _wages >= 0 else _RED))
+		"+" if earned - total_costs >= 0 else "", earned - total_costs], 12,
+		_GOLD if earned - total_costs >= 0 else _RED))
 
 	# Travel log
 	vb.add_child(_lbl(""))

@@ -12,6 +12,7 @@ var lbl_crew: Button
 var _job_board_popup: PanelContainer  # active job board modal (if open)
 var btn_hull_edit: Button
 var _blueprint_ctrl: ShipBlueprint
+var _mission_crew_bar: HBoxContainer  # crew face icons for available missions
 
 # ── Shipyard modal refs (created/destroyed on open/close) ────────────────────
 var _shipyard_popup: Control           # the full-screen shipyard overlay
@@ -135,6 +136,7 @@ func _build_ui() -> void:
 	add_child(root_vbox)
 
 	_build_header(root_vbox)
+	_build_mission_crew_bar(root_vbox)
 
 	var body := HBoxContainer.new()
 	body.size_flags_vertical = Control.SIZE_EXPAND_FILL
@@ -221,6 +223,97 @@ func _build_header(parent: Control) -> void:
 
 
 	_add_spacer(hbox, 4)
+
+
+func _build_mission_crew_bar(parent: Control) -> void:
+	## Thin horizontal bar that shows small crew face icons when they have missions.
+	_mission_crew_bar = HBoxContainer.new()
+	_mission_crew_bar.add_theme_constant_override("separation", 6)
+	_mission_crew_bar.custom_minimum_size.y = 36
+	# Dark subtle background
+	var bar_bg := PanelContainer.new()
+	var bar_style := StyleBoxFlat.new()
+	bar_style.bg_color = Color(0.04, 0.05, 0.08, 1.0)
+	bar_style.set_content_margin_all(2)
+	bar_style.content_margin_left = 8
+	bar_bg.add_theme_stylebox_override("panel", bar_style)
+	bar_bg.add_child(_mission_crew_bar)
+	parent.add_child(bar_bg)
+	# Will be populated by _refresh_mission_crew_bar()
+
+
+func _refresh_mission_crew_bar() -> void:
+	## Refreshes the crew face icon bar — shows small portraits for crew with available missions.
+	if _mission_crew_bar == null or not is_instance_valid(_mission_crew_bar):
+		return
+	# Clear existing icons
+	for c in _mission_crew_bar.get_children():
+		c.queue_free()
+
+	# Collect all crew who have available missions
+	var mission_crew: Array = []  # [{id, portrait_path}]
+
+	# Percy missions
+	var percy_avail := _get_available_percy_missions()
+	if not percy_avail.is_empty():
+		mission_crew.append({"id": "percy", "path": CREW_PORTRAITS.get("percy", "")})
+
+	# Crew missions — deduplicate by crew id (only show each crew once)
+	var crew_avail := _get_available_crew_missions()
+	var seen_crew: Array = []
+	for m in crew_avail:
+		var crew_id: String = m.crew as String
+		if seen_crew.has(crew_id):
+			continue
+		seen_crew.append(crew_id)
+		mission_crew.append({"id": crew_id, "path": CREW_PORTRAITS.get(crew_id, "")})
+
+	if mission_crew.is_empty():
+		# No missions — hide the bar or show a hint
+		var hint := Label.new()
+		hint.text = "No missions available"
+		hint.add_theme_font_size_override("font_size", 10)
+		hint.add_theme_color_override("font_color", Color(0.35, 0.38, 0.48))
+		_mission_crew_bar.add_child(hint)
+		return
+
+	# Label
+	var lbl := Label.new()
+	lbl.text = "MISSIONS:"
+	lbl.add_theme_font_size_override("font_size", 9)
+	lbl.add_theme_color_override("font_color", Color(0.6, 0.55, 0.35))
+	lbl.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+	_mission_crew_bar.add_child(lbl)
+
+	# Add crew face buttons
+	for entry in mission_crew:
+		var crew_id: String = entry.id
+		var portrait_path: String = entry.path
+		var btn := Button.new()
+		btn.custom_minimum_size = Vector2(32, 32)
+		btn.flat = true
+		btn.tooltip_text = crew_id.capitalize() + " — mission available! Click to view star chart."
+		# Load portrait as icon
+		if not portrait_path.is_empty() and ResourceLoader.exists(portrait_path):
+			var tex: Texture2D = load(portrait_path) as Texture2D
+			if tex != null:
+				btn.icon = tex
+				btn.expand_icon = true
+		else:
+			btn.text = "❗"
+			btn.add_theme_font_size_override("font_size", 16)
+		# Gold border to signal mission
+		var btn_style := StyleBoxFlat.new()
+		btn_style.bg_color = Color(0.12, 0.10, 0.06, 0.8)
+		btn_style.border_color = Color(1.0, 0.82, 0.31, 0.9)
+		btn_style.set_border_width_all(2)
+		btn_style.set_corner_radius_all(4)
+		btn.add_theme_stylebox_override("normal", btn_style)
+		var btn_hover := btn_style.duplicate() as StyleBoxFlat
+		btn_hover.bg_color = Color(0.18, 0.15, 0.08, 0.9)
+		btn.add_theme_stylebox_override("hover", btn_hover)
+		btn.pressed.connect(_show_captains_log_chart)
+		_mission_crew_bar.add_child(btn)
 
 
 func _build_graph(parent: Control) -> void:
@@ -506,9 +599,14 @@ func _show_mission_accept_panel(mission: Dictionary, crew_id: String, is_percy: 
 	vb.add_child(lbl_title)
 
 	# Details line
+	var m_days: int = mission.days as int
+	var m_fuel: int = _calc_fuel_cost(m_days, mission.location as String)
+	var detail_text := "%s  |  ~%d days  |  Reward: %d cr" % [
+		loc_name, m_days, mission.reward as int]
+	if m_fuel > 0:
+		detail_text += "  |  Fuel: %d cr" % m_fuel
 	var details := Label.new()
-	details.text = "%s  |  ~%d days  |  Reward: %d cr" % [
-		loc_name, mission.days as int, mission.reward as int]
+	details.text = detail_text
 	details.add_theme_font_size_override("font_size", 11)
 	details.add_theme_color_override("font_color", Color(0.90, 0.85, 0.55, 1.0))
 	details.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
@@ -1091,6 +1189,7 @@ func _update_header() -> void:
 	lbl_location.text = _e("📍", "%s") % (sys.get("name", "Unknown") if not sys.is_empty() else "Unknown")
 	if lbl_crew != null:
 		lbl_crew.text = _e("👥", "Crew: %d") % _crew.size()
+	_refresh_mission_crew_bar()
 
 
 func _total_power() -> int:
@@ -1103,6 +1202,19 @@ func _total_power() -> int:
 		if not def.is_empty():
 			total += def.power
 	return total
+
+
+const FUEL_FREE_DAYS := 5       # trips this short or shorter are free
+const FUEL_COST_PER_ROOM := 2   # credits per room per day
+
+func _calc_fuel_cost(days: int, destination_id: String) -> int:
+	## Fuel cost = days × room_count × rate × destination price tier.
+	## Trips of 5 days or less are free (safety net so players can always earn).
+	if days <= FUEL_FREE_DAYS:
+		return 0
+	var room_count: int = _all_nodes().size()
+	var price_mult: float = StarMapData.get_price_multiplier(destination_id)
+	return int(float(days * room_count * FUEL_COST_PER_ROOM) * price_mult)
 
 
 func _all_nodes() -> Array:
@@ -1930,7 +2042,7 @@ func _init_discovery() -> void:
 
 
 func _discover_nearby(system_id: String) -> Array:
-	## Discovers the given system and all systems within 15 units.
+	## Discovers the given system and all systems within 40 units.
 	## Returns array of newly discovered system names (for toast).
 	var new_finds: Array = []
 	var sys := StarMapData.find_system(system_id)
@@ -1943,7 +2055,7 @@ func _discover_nearby(system_id: String) -> Array:
 	for s in StarMapData.SYSTEMS:
 		if _discovered_systems.has(s.id):
 			continue
-		if pos.distance_to(s.pos as Vector3) <= 15.0:
+		if pos.distance_to(s.pos as Vector3) <= 40.0:
 			_discovered_systems.append(s.id as String)
 			new_finds.append(s.name as String)
 	return new_finds
@@ -2016,6 +2128,16 @@ func _get_available_crew_missions() -> Array:
 		elif ttype == "system_discovered":
 			if not _discovered_systems.has(trigger.get("value", "") as String):
 				continue
+		# Cross-crew dependency: all required missions must be completed
+		var reqs: Array = m.get("requires", [])
+		var reqs_met := true
+		for req_id in reqs:
+			var rid: String = req_id as String
+			if not _percy_missions_completed.has(rid) and not _crew_missions_completed.has(rid):
+				reqs_met = false
+				break
+		if not reqs_met:
+			continue
 		available.append(m)
 	return available
 
@@ -2475,8 +2597,11 @@ func _build_job_row(job: Dictionary, popup: PanelContainer) -> PanelContainer:
 	info_vb.add_child(lbl_desc)
 
 	# Stats line: days, pay/day, total, hazard
+	var fuel: int = _calc_fuel_cost(job.days, job.destination_id)
 	var stats_text := "%d days  |  %d cr/day  |  Total: %d cr" % [
 		job.days, job.pay_per_day, job.total_pay]
+	if fuel > 0:
+		stats_text += "  |  Fuel: %d cr" % fuel
 	if job.harsh:
 		stats_text += "  |  [!] Hazardous"
 	var lbl_stats := Label.new()
@@ -2485,6 +2610,18 @@ func _build_job_row(job: Dictionary, popup: PanelContainer) -> PanelContainer:
 	lbl_stats.add_theme_color_override("font_color",
 		Color(0.86, 0.39, 0.31, 1.0) if job.harsh else Color(0.55, 0.72, 0.55, 1.0))
 	info_vb.add_child(lbl_stats)
+
+	# Net profit line (total pay minus fuel and wages)
+	var wages: int = CrewData.wage_for_trip(_crew.size(), job.days)
+	var net: int = job.total_pay - fuel - wages
+	var net_lbl := Label.new()
+	net_lbl.text = "Net: %s%d cr (after fuel%s)" % [
+		"+" if net >= 0 else "", net,
+		" + wages" if wages > 0 else ""]
+	net_lbl.add_theme_font_size_override("font_size", 9)
+	net_lbl.add_theme_color_override("font_color",
+		Color(1.0, 0.82, 0.31, 0.8) if net >= 0 else Color(0.95, 0.3, 0.25, 0.8))
+	info_vb.add_child(net_lbl)
 
 	# Durability warnings — estimate which rooms may fail during this trip
 	var at_risk := _estimate_at_risk_rooms(job.days, job.harsh)
@@ -2497,15 +2634,21 @@ func _build_job_row(job: Dictionary, popup: PanelContainer) -> PanelContainer:
 
 	# Right: Accept button
 	var btn := Button.new()
-	btn.text = "Accept"
 	btn.custom_minimum_size = Vector2(70, 32)
 	btn.size_flags_vertical = Control.SIZE_SHRINK_CENTER
 	btn.add_theme_font_size_override("font_size", 11)
-	btn.add_theme_color_override("font_color", Color(0.5, 1.0, 0.6, 1.0))
-	btn.pressed.connect(func() -> void:
-		popup.queue_free()
-		_job_board_popup = null
-		_accept_job(job))
+	if fuel > credits:
+		btn.text = "No Fuel"
+		btn.add_theme_color_override("font_color", Color(0.5, 0.4, 0.4, 0.7))
+		btn.disabled = true
+		btn.tooltip_text = "Not enough credits for fuel (%d cr needed)" % fuel
+	else:
+		btn.text = "Accept"
+		btn.add_theme_color_override("font_color", Color(0.5, 1.0, 0.6, 1.0))
+		btn.pressed.connect(func() -> void:
+			popup.queue_free()
+			_job_board_popup = null
+			_accept_job(job))
 	hb.add_child(btn)
 
 	return row_panel
@@ -2665,6 +2808,14 @@ func _launch_flight(job: Dictionary, cargo_bonus: int) -> void:
 	var pwr: int   = _total_power()
 	var wages: int = CrewData.wage_for_trip(_crew.size(), days)
 
+	# Deduct fuel cost before departure
+	var fuel_cost: int = _calc_fuel_cost(days, job.get("destination_id", ""))
+	if fuel_cost > 0:
+		credits -= fuel_cost
+		credits = maxi(credits, 0)
+		_toast("Fuel loaded: -%d cr" % fuel_cost)
+		_update_header()
+
 	var star_map := StarMap.new()
 	star_map.setup({
 		"days":            days,
@@ -2686,6 +2837,7 @@ func _launch_flight(job: Dictionary, cargo_bonus: int) -> void:
 		"is_percy":        job.get("is_percy", false),
 		"is_crew_mission": job.get("is_crew_mission", false),
 		"max_speed":       _calc_engine_tier(),
+		"fuel_cost":       fuel_cost,
 	})
 	add_child(star_map)
 	star_map.job_finished.connect(_on_job_finished)
@@ -2764,10 +2916,19 @@ func _on_job_finished(result: Dictionary) -> void:
 	var route := [prev_system, _current_system]
 	if not _traveled_routes.has(route):
 		_traveled_routes.append(route)
-	var newly_found := _discover_nearby(_current_system)
-	if not newly_found.is_empty():
+	# Discover from all waypoint systems along the route, not just the destination
+	var all_finds: Array = []
+	var path_ids: Array = result.get("path_ids", [])
+	for wp_id in path_ids:
+		var wp_str: String = wp_id as String
+		if not wp_str.is_empty():
+			all_finds.append_array(_discover_nearby(wp_str))
+	# Also discover from the destination (in case path_ids is empty/old save)
+	if not path_ids.has(_current_system):
+		all_finds.append_array(_discover_nearby(_current_system))
+	if not all_finds.is_empty():
 		_toast("Sensors charted %d new system(s): %s" % [
-			newly_found.size(), ", ".join(newly_found)])
+			all_finds.size(), ", ".join(all_finds)])
 
 	# ── Mission destination failsafe ──
 	# If a mission is available but its destination hasn't been discovered,

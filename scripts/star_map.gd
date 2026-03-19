@@ -55,6 +55,9 @@ var _gunner_enemies:        Array      = []   # Array of Node3D enemy meshes
 var _gunner_enemy_ts:       Array      = []   # per-enemy approach progress (0→1)
 var _gunner_enemy_offsets:  Array      = []   # per-enemy lateral/vertical spawn offset
 var _gunner_enemy_speeds:   Array      = []   # per-enemy approach speed variation
+var _gunner_enemy_tactics:  Array      = []   # per-enemy flight tactic (0-5)
+# Tactic types: 0=weave (default sine), 1=corkscrew, 2=zigzag, 3=juke (sudden shifts),
+#               4=barrel_roll, 5=straight_charge
 var _gunner_crosshair:      Control    = null
 var _gunner_event:          Dictionary = {}
 var _gunner_timer:          float      = 0.0
@@ -1549,8 +1552,10 @@ func _finish_travel() -> void:
 			"log_lines":      _log_lines,
 			"destination":    _wp_names[-1],
 			"destination_id": _path_ids[-1] if not _path_ids.is_empty() else "sol",
+			"path_ids":       _path_ids.duplicate(),
 			"days":           days,
 			"wages":          wages,
+			"fuel_cost":      _params.get("fuel_cost", 0),
 			"is_percy":       _params.get("is_percy", false),
 			"is_crew_mission": _params.get("is_crew_mission", false),
 		})
@@ -1613,13 +1618,14 @@ func _enter_gunner_mode(ev: Dictionary) -> void:
 	_gunner_kills  = 0
 	_gunner_timer  = GUNNER_DURATION
 	_gunner_exit_delay = -1.0
-	_gunner_shots_left = maxi(1, _count_effective_tactical())
+	_gunner_shots_left = 3 + _count_effective_tactical()
 
 	# Clear arrays
 	_gunner_enemies.clear()
 	_gunner_enemy_ts.clear()
 	_gunner_enemy_offsets.clear()
 	_gunner_enemy_speeds.clear()
+	_gunner_enemy_tactics.clear()
 
 	# Travel continues — no pause! Combat happens while flying.
 
@@ -1633,9 +1639,6 @@ func _enter_gunner_mode(ev: Dictionary) -> void:
 	var pay_tier: int = clampi(pay / 50, 0, 3)
 	var enemy_count: int = randi_range(GUNNER_ENEMY_MIN, mini(GUNNER_ENEMY_MAX, GUNNER_ENEMY_MIN + 2 + pay_tier * 2))
 	_gunner_total = enemy_count
-
-	# More enemies = more shots (bonus on top of tactical rooms)
-	_gunner_shots_left += enemy_count / 2
 
 	# Log alert
 	var attacker: String = ev.get("attacker", "Unknown")
@@ -1668,6 +1671,8 @@ func _enter_gunner_mode(ev: Dictionary) -> void:
 		_gunner_enemy_offsets.append(Vector3(lat_offset, vert_offset, depth_offset))
 		# Each enemy has slightly different approach speed for visual variety
 		_gunner_enemy_speeds.append(GUNNER_APPROACH_BASE + randf_range(-0.015, 0.025))
+		# Random flight tactic: 0=weave, 1=corkscrew, 2=zigzag, 3=juke, 4=barrel_roll, 5=straight_charge
+		_gunner_enemy_tactics.append(randi_range(0, 5))
 
 	# Activate gunner mode immediately — _gunner_process will handle camera
 	_gunner_active = true
@@ -1708,15 +1713,7 @@ func _build_gunner_hud() -> void:
 	_gunner_bar_timer.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	_gunner_bar_bg.add_child(_gunner_bar_timer)
 
-	# Ammo label (bottom-left)
-	_gunner_lbl_ammo = Label.new()
-	_gunner_lbl_ammo.text = "SHOTS: %d" % _gunner_shots_left
-	_gunner_lbl_ammo.add_theme_font_size_override("font_size", 16)
-	_gunner_lbl_ammo.add_theme_color_override("font_color", Color(0.2, 0.9, 1.0, 1.0))
-	_gunner_lbl_ammo.set_anchors_and_offsets_preset(Control.PRESET_BOTTOM_LEFT)
-	_gunner_lbl_ammo.offset_left = 16
-	_gunner_lbl_ammo.offset_bottom = -130
-	_gunner_crosshair.add_child(_gunner_lbl_ammo)
+	# Ammo is now drawn as ticks under the crosshair (in _GunnerCrosshair._draw)
 
 	# Kills counter (bottom-right)
 	_gunner_lbl_kills = Label.new()
@@ -1790,22 +1787,61 @@ func _gunner_process(delta: float) -> void:
 		var enemy: Node3D = _gunner_enemies[i]
 
 		_gunner_enemy_ts[i] += delta * _gunner_enemy_speeds[i]
+		var t: float = minf(_gunner_enemy_ts[i], 1.0)
 		var offset: Vector3 = _gunner_enemy_offsets[i]
+		var phase := float(i) * 1.7
 
 		# Approach: stagger start depth → close to 3 units ahead
-		var dist_ahead := lerpf(offset.z, 3.0, minf(_gunner_enemy_ts[i], 1.0))
+		var dist_ahead := lerpf(offset.z, 3.0, t)
 		var base_pos := ship_pos + fwd * dist_ahead
 
-		# Weave: each enemy gets a unique phase based on its index
-		var phase := float(i) * 1.7
-		var weave_x := sin(elapsed * 1.8 + phase) * 2.5 + offset.x * (1.0 - minf(_gunner_enemy_ts[i], 1.0))
-		var weave_y := cos(elapsed * 2.3 + phase) * 1.2 + offset.y * (1.0 - minf(_gunner_enemy_ts[i], 1.0))
-		enemy.global_position = base_pos + side * weave_x + Vector3.UP * weave_y
+		# Remaining spawn offset fades as enemy approaches
+		var fade := 1.0 - t
 
-		# Face the ship
+		# Per-enemy flight tactic
+		var tactic: int = _gunner_enemy_tactics[i] if i < _gunner_enemy_tactics.size() else 0
+		var wx := 0.0  # lateral displacement
+		var wy := 0.0  # vertical displacement
+		var roll_angle := 0.0  # visual roll for barrel roll tactic
+
+		match tactic:
+			0:  # Weave — gentle sine/cosine, the classic
+				wx = sin(elapsed * 1.8 + phase) * 2.5 + offset.x * fade
+				wy = cos(elapsed * 2.3 + phase) * 1.2 + offset.y * fade
+			1:  # Corkscrew — tight spiral approach
+				var spiral_r := lerpf(4.0, 0.8, t)
+				wx = cos(elapsed * 3.5 + phase) * spiral_r + offset.x * fade
+				wy = sin(elapsed * 3.5 + phase) * spiral_r + offset.y * fade
+			2:  # Zigzag — sharp lateral snaps at intervals
+				var zag_period := 0.6
+				var zag_t := fmod(elapsed + phase * 0.3, zag_period) / zag_period
+				var zag_dir := 1.0 if fmod(floor((elapsed + phase * 0.3) / zag_period), 2.0) < 1.0 else -1.0
+				wx = zag_dir * lerpf(3.5, 1.0, t) + offset.x * fade
+				wy = offset.y * fade + sin(elapsed * 1.5 + phase) * 0.6
+			3:  # Juke — mostly straight, sudden random lateral bursts
+				var juke_t := sin(elapsed * 5.0 + phase * 2.1)
+				var juke_burst := 0.0
+				if absf(juke_t) > 0.85:
+					juke_burst = sign(juke_t) * 3.5 * (1.0 - t)
+				wx = juke_burst + offset.x * fade
+				wy = offset.y * fade + cos(elapsed * 1.2 + phase) * 0.4
+			4:  # Barrel roll — spinning while approaching
+				var roll_r := lerpf(3.0, 0.5, t)
+				wx = cos(elapsed * 4.0 + phase) * roll_r + offset.x * fade
+				wy = sin(elapsed * 4.0 + phase) * roll_r + offset.y * fade
+				roll_angle = elapsed * 4.0 + phase
+			5:  # Straight charge — fast, minimal evasion, intimidating
+				wx = offset.x * fade * 0.3
+				wy = offset.y * fade * 0.3
+
+		enemy.global_position = base_pos + side * wx + Vector3.UP * wy
+
+		# Face the ship (with optional barrel roll)
 		var to_ship := ship_pos - enemy.global_position
 		if to_ship.length_squared() > 0.1:
 			enemy.look_at(ship_pos, Vector3.UP)
+			if tactic == 4:
+				enemy.rotate_object_local(Vector3.FORWARD, roll_angle)
 
 		if _gunner_enemy_ts[i] >= 1.0:
 			any_arrived = true
@@ -1839,10 +1875,7 @@ func _gunner_fire() -> void:
 		return
 
 	_gunner_shots_left -= 1
-	if is_instance_valid(_gunner_lbl_ammo):
-		_gunner_lbl_ammo.text = "SHOTS: %d" % _gunner_shots_left
-		_gunner_lbl_ammo.modulate = Color(1, 1, 1, 1) if _gunner_shots_left > 0 \
-			else Color(1.0, 0.3, 0.3, 1.0)
+	# Ammo ticks are drawn by _GunnerCrosshair._draw() — no label to update
 
 	# Get mouse position in the SubViewport
 	var mouse_pos := get_viewport().get_mouse_position()
@@ -2078,6 +2111,7 @@ func _exit_gunner_mode() -> void:
 	_gunner_enemy_ts.clear()
 	_gunner_enemy_offsets.clear()
 	_gunner_enemy_speeds.clear()
+	_gunner_enemy_tactics.clear()
 
 	# Restore camera phase — _update_camera in _process will smoothly
 	# lerp the camera back to chase position on its own
@@ -2109,3 +2143,23 @@ class _GunnerCrosshair extends Control:
 		draw_line(mouse + Vector2(10, 0),  mouse + Vector2(30, 0),  col, 1.5)
 		draw_line(mouse + Vector2(0, -30), mouse + Vector2(0, -10), col, 1.5)
 		draw_line(mouse + Vector2(0, 10),  mouse + Vector2(0, 30),  col, 1.5)
+
+		# ── Ammo ticks: vertical lines below the crosshair ──────────────
+		var total_shots: int = 3 + star_map._count_effective_tactical()
+		var shots_left: int  = star_map._gunner_shots_left
+		var tick_w := 3.0    # width of each tick
+		var tick_h := 12.0   # height of each tick
+		var tick_gap := 3.0  # gap between ticks
+		var total_w := float(total_shots) * tick_w + float(total_shots - 1) * tick_gap
+		var start_x := mouse.x - total_w * 0.5
+		var start_y := mouse.y + 36.0  # below the crosshair
+
+		for t in total_shots:
+			var tx := start_x + float(t) * (tick_w + tick_gap)
+			var rect := Rect2(tx, start_y, tick_w, tick_h)
+			if t < shots_left:
+				# Remaining ammo — bright cyan
+				draw_rect(rect, Color(0.2, 0.9, 1.0, 0.9))
+			else:
+				# Spent — dim outline
+				draw_rect(rect, Color(0.3, 0.35, 0.4, 0.4), false, 1.0)

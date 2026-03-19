@@ -66,7 +66,10 @@ var _selected_idx:    int = -1
 var _highlight_mesh:  MeshInstance3D = null
 
 # ── UI refs ──────────────────────────────────────────────────────────────────
-var _room_list:    ItemList
+var _room_list:       VBoxContainer   # container of room rows (replaced ItemList)
+var _room_list_scroll: ScrollContainer
+var _room_visible:    Array = []      # parallel bool array — visible in 3D?
+var _room_row_btns:   Array = []      # parallel Button array for selection highlight
 var _lbl_selected: Label
 var _slider_x:     HSlider
 var _slider_y:     HSlider
@@ -179,13 +182,16 @@ func _build_left_panel(parent: Control) -> void:
 	list_lbl.add_theme_color_override("font_color", CLR_DIM)
 	vb.add_child(list_lbl)
 
-	_room_list = ItemList.new()
-	_room_list.custom_minimum_size.y = 160
-	_room_list.size_flags_vertical = Control.SIZE_EXPAND_FILL
-	_room_list.add_theme_color_override("font_color", CLR_TEXT)
-	_room_list.add_theme_font_size_override("font_size", 11)
-	_room_list.item_selected.connect(_on_list_selected)
-	vb.add_child(_room_list)
+	_room_list_scroll = ScrollContainer.new()
+	_room_list_scroll.custom_minimum_size.y = 160
+	_room_list_scroll.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	_room_list_scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
+	vb.add_child(_room_list_scroll)
+
+	_room_list = VBoxContainer.new()
+	_room_list.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	_room_list.add_theme_constant_override("separation", 1)
+	_room_list_scroll.add_child(_room_list)
 
 	# Separator
 	var sep := HSeparator.new()
@@ -482,12 +488,49 @@ func _apply_layout_to_container(container: Node3D, uid: String) -> void:
 # ── Room List ────────────────────────────────────────────────────────────────
 
 func _populate_room_list() -> void:
+	_room_visible.clear()
+	_room_row_btns.clear()
 	for i in _room_uids.size():
-		_room_list.add_item(_room_names[i])
-		_room_list.set_item_custom_fg_color(i, RoomData.type_color(_room_types[i]))
+		var row := HBoxContainer.new()
+		row.add_theme_constant_override("separation", 4)
+		_room_list.add_child(row)
+
+		# Visibility checkbox — Utility rooms default to hidden
+		var cb := CheckBox.new()
+		cb.button_pressed = _room_types[i] != "Utility"
+		cb.custom_minimum_size = Vector2(20, 20)
+		cb.tooltip_text = "Show/hide in 3D"
+		cb.toggled.connect(_on_room_visibility_toggled.bind(i))
+		row.add_child(cb)
+		_room_visible.append(cb.button_pressed)
+
+		# Room name button (acts as list selection)
+		var btn := Button.new()
+		btn.text = _room_names[i]
+		btn.add_theme_font_size_override("font_size", 11)
+		btn.add_theme_color_override("font_color", RoomData.type_color(_room_types[i]))
+		btn.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		btn.flat = true
+		btn.alignment = HORIZONTAL_ALIGNMENT_LEFT
+		btn.pressed.connect(_on_list_selected.bind(i))
+		row.add_child(btn)
+		_room_row_btns.append(btn)
+
+	# Apply initial visibility to 3D containers
+	for i in _room_containers.size():
+		if i < _room_visible.size():
+			(_room_containers[i] as Node3D).visible = _room_visible[i]
 
 
-func _on_list_selected(idx: int) -> void:
+func _on_room_visibility_toggled(is_visible: bool, idx: int) -> void:
+	if idx < 0 or idx >= _room_visible.size():
+		return
+	_room_visible[idx] = is_visible
+	if idx < _room_containers.size():
+		(_room_containers[idx] as Node3D).visible = is_visible
+
+
+func _on_list_selected(idx: int = -1) -> void:
 	_select_room(idx)
 
 
@@ -501,9 +544,16 @@ func _select_room(idx: int) -> void:
 
 	_selected_idx = idx
 
+	# Update row button highlights
+	for j in _room_row_btns.size():
+		var btn: Button = _room_row_btns[j]
+		if j == idx:
+			btn.add_theme_color_override("font_color", CLR_GOLD)
+		else:
+			btn.add_theme_color_override("font_color", RoomData.type_color(_room_types[j]))
+
 	if idx < 0 or idx >= _room_containers.size():
 		_lbl_selected.text = "No room selected"
-		_room_list.deselect_all()
 		_zero_sliders()
 		_refresh_tex_panel("")
 		if _color_picker_btn:
@@ -511,7 +561,6 @@ func _select_room(idx: int) -> void:
 			_lbl_tint_name.text = ""
 		return
 
-	_room_list.select(idx)
 	_lbl_selected.text = _room_names[idx]
 
 	# Add highlight wireframe box
@@ -872,6 +921,78 @@ func _build_texture_panel(parent: Control) -> void:
 	btn_clear.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	btn_clear.add_theme_color_override("font_color", Color(1.0, 0.6, 0.6))
 	vb.add_child(btn_clear)
+
+	# ── Apply to all visible (David's request) ───────────────────────────
+	var sep3 := HSeparator.new()
+	sep3.add_theme_color_override("color", CLR_ACCENT.darkened(0.4))
+	vb.add_child(sep3)
+
+	var lbl_apply := Label.new()
+	lbl_apply.text = "APPLY TO VISIBLE"
+	lbl_apply.add_theme_font_size_override("font_size", 9)
+	lbl_apply.add_theme_color_override("font_color", CLR_DIM)
+	lbl_apply.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	vb.add_child(lbl_apply)
+
+	var cb_color := CheckBox.new()
+	cb_color.text = "Apply Color"
+	cb_color.add_theme_font_size_override("font_size", 10)
+	cb_color.add_theme_color_override("font_color", CLR_TEXT)
+	cb_color.tooltip_text = "Check to apply the current tint color to all visible rooms"
+	cb_color.toggled.connect(_on_apply_color_to_visible)
+	vb.add_child(cb_color)
+
+	var cb_tex := CheckBox.new()
+	cb_tex.text = "Apply Texture"
+	cb_tex.add_theme_font_size_override("font_size", 10)
+	cb_tex.add_theme_color_override("font_color", CLR_TEXT)
+	cb_tex.tooltip_text = "Check to apply the current texture to all visible rooms"
+	cb_tex.toggled.connect(_on_apply_texture_to_visible)
+	vb.add_child(cb_tex)
+
+
+func _on_apply_color_to_visible(checked: bool) -> void:
+	if not checked:
+		return
+	if _color_picker_btn == null:
+		return
+	var color := _color_picker_btn.color
+	var hex := color.to_html(false)
+	var room_colors: Dictionary = _params.get("room_colors", {})
+	for i in _room_containers.size():
+		if i >= _room_visible.size() or not _room_visible[i]:
+			continue
+		var uid: String = _room_uids[i]
+		room_colors[uid] = hex
+		# Apply tint to the 3D material
+		var container: Node3D = _room_containers[i]
+		var mat: StandardMaterial3D = container.get_meta("base_mat", null)
+		if mat != null:
+			mat.albedo_color = color
+	_params["room_colors"] = room_colors
+
+
+func _on_apply_texture_to_visible(checked: bool) -> void:
+	if not checked:
+		return
+	# Find current texture from selected room
+	var cur_tex := ""
+	if _selected_idx >= 0 and _selected_idx < _room_uids.size():
+		var sel_uid: String = _room_uids[_selected_idx]
+		if _layout.has(sel_uid):
+			cur_tex = (_layout[sel_uid] as Dictionary).get("tex", "")
+		if cur_tex.is_empty():
+			cur_tex = (_params.get("room_textures", {}) as Dictionary).get(sel_uid, "")
+	if cur_tex.is_empty():
+		return  # No texture selected to apply
+	for i in _room_containers.size():
+		if i >= _room_visible.size() or not _room_visible[i]:
+			continue
+		var uid: String = _room_uids[i]
+		if not _layout.has(uid):
+			_layout[uid] = {"ox": 0.0, "oy": 0.0, "oz": 0.0, "rot_y": 0.0, "scale": 1.0}
+		_layout[uid]["tex"] = cur_tex
+		_apply_tex_to_container(_room_containers[i], cur_tex)
 
 
 func _on_texture_thumb_clicked(path: String) -> void:

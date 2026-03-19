@@ -805,6 +805,7 @@ const CREW_MISSIONS: Array = [
 		"title":    "Breaking Point",
 		"location": "the_rim",
 		"trigger":  { "type": "jobs_completed", "value": 15 },
+		"requires": ["percy_04_cygnus_signal"],
 		"desc":     "At The Rim, everything Percy uncovered comes to a head. Mika must keep the crew together.",
 		"crew_msg": "\"Captain, I won't sugarcoat this. What Percy found — what those unmarked ships were doing out here — it's bigger than any of us expected. The crew is scared. Roswell's oscillating between vindication and paranoia. Shadow hasn't slept. Even Zester's gone quiet, and that terrifies me more than anything. We're going to The Rim, and we're going to finish this. But I need you to trust me when I say: the biggest danger out there isn't what we'll find. It's what it'll do to us. I'll keep them together. That's my job. That's what I do.\"",
 		"dialogue": [
@@ -990,6 +991,7 @@ const CREW_MISSIONS: Array = [
 		"title":    "The Real Deal",
 		"location": "iron_belt",
 		"trigger":  { "type": "system_discovered", "value": "iron_belt" },
+		"requires": ["tumbler_01_the_toll"],
 		"desc":     "The rock Rina bought is a pre-colonial calibration device. Murphy's boss Tumbler wants it badly — and so does someone else. [CROSSOVER: Murphy, Tumbler]",
 		"crew_msg": "\"So. Murphy came to see me. Politely. Very politely. He says the thing I bought — which turns out to be a navigation calibrator from the first expansion era, which is EXTREMELY rare — is on a list of things his employer is looking for. He was charming about it. He said his employer has been quietly assembling a collection at the Iron Belt for preservation purposes. I believe him. But someone else has been following our ship since Kepler, and they are not charming at all. Captain, I think we need to be careful about who else knows what I've got.\"",
 		"dialogue": [
@@ -1043,6 +1045,7 @@ const CREW_MISSIONS: Array = [
 		"title":    "Murphy Is Late",
 		"location": "barnard",
 		"trigger":  { "type": "system_discovered", "value": "barnard" },
+		"requires": ["murphy_01_vega_job"],
 		"desc":     "Murphy went dark on a retrieval run to Barnard's Star. Tumbler is too proud to say he's worried. [CROSSOVER: Murphy]",
 		"crew_msg": "\"Murphy is twelve days overdue from a retrieval at Barnard's Star. This is not unusual. Murphy is often late. However, twelve days is pushing it even for him and I find I am... monitoring the comms more than typical. If you are going near Barnard, I am not asking you to look for him. I am merely noting that I would be informed of any information you happened to come across. There would be a finder's fee. Of a professional nature. Not a sentimental one.\"",
 		"dialogue": [
@@ -1096,6 +1099,7 @@ const CREW_MISSIONS: Array = [
 		"title":    "Clear Sight",
 		"location": "elysium",
 		"trigger":  { "type": "system_discovered", "value": "elysium" },
+		"requires": ["murphy_02_lost_in_the_rock"],
 		"desc":     "A surgeon at Elysium may be able to restore Tumbler's eyesight — but the procedure requires a rare material Murphy has been quietly collecting for years. [CROSSOVER: Murphy]",
 		"crew_msg": "\"There is a microsurgeon at Elysium. Dr. Voss. She believes she can restore my vision using a crystalline neural compound found only at the outer rim. I would not normally tell anyone this. I am telling you because Murphy — who never once mentioned this to me — has apparently spent three years quietly collecting the compound on his retrieval runs. I found out by accident. He never said a word. I need you to bring me to Elysium, Captain. And if you see Murphy before I do, tell him... tell him he's getting a raise.\"",
 		"dialogue": [
@@ -1151,6 +1155,7 @@ const CREW_MISSIONS: Array = [
 		"title":    "Lost in the Rock",
 		"location": "iron_belt",
 		"trigger":  { "type": "system_discovered", "value": "iron_belt" },
+		"requires": ["roswell_01_strange_signals"],
 		"desc":     "Murphy is pinned down by claim jumpers in the Iron Belt. Roswell heard his distress call before Murphy officially sent one. [CROSSOVER: Roswell]",
 		"crew_msg": "\"...OK, so, small situation. The retrieval at the Iron Belt went sideways. Claim jumpers — six of them, well-armed, not in the mood to talk. I'm wedged behind a very aesthetically interesting rock formation and my ship has exactly one working thruster. Funny thing is, I heard Roswell's voice on the comms before I even sent a distress call — something about sub-harmonic frequencies? I don't know how he found me but I'm choosing not to question it. Captain, if you could come get me, that would be wonderful. I've found three remarkable things out here, incidentally. Real finds. Worth the trip, I promise.\"",
 		"dialogue": [
@@ -1177,6 +1182,7 @@ const CREW_MISSIONS: Array = [
 		"title":    "Provenance",
 		"location": "new_haven",
 		"trigger":  { "type": "system_discovered", "value": "new_haven" },
+		"requires": ["bella_03_auction"],
 		"desc":     "Murphy is at the New Haven auction for the same artifact as Bella and Rina. He asks the Captain to mediate. [CROSSOVER: Bella, Rina]",
 		"crew_msg": "\"Captain. Good news and complicated news. Good news: the navigation sphere at New Haven is genuine — I've seen its twin in a museum on Kepler and the provenance markers match. Complicated news: two very charming, very persistent women who I believe are somehow the same person are also bidding on it and they keep asking me questions I'm finding difficult to answer coherently. My employer needs that sphere. The twins seem very attached to the idea of having it. I think maybe you could talk to everyone? You're good at people. I'm good at artifacts. This situation requires both.\"",
 		"dialogue": [
@@ -1257,6 +1263,7 @@ const CREW_MISSIONS: Array = [
 		"title":    "Right of Asylum",
 		"location": "barnard",
 		"trigger":  { "type": "system_discovered", "value": "barnard" },
+		"requires": ["percy_03_barnard_trace"],
 		"desc":     "A refugee colony at Barnard's Star is requesting GEC protection. River finds evidence connected to Percy's derelict investigation. [CROSSOVER: Percy]",
 		"crew_msg": "\"There's a colony at Barnard's Star — about four hundred people — who have formally requested GEC protection. Corporate security from an unlicensed mining operation is moving on them. I need to get there before they do. I should also tell you — when I filed the Barnard brief, I cross-referenced it with Percy's recent reports. The unmarked derelict he investigated? The colony has seen those ships before. They've been watching them for months. Whatever Percy is untangling, Captain, it's bigger than one ship. And it starts here.\"",
 		"dialogue": [
@@ -1283,6 +1290,7 @@ const CREW_MISSIONS: Array = [
 		"title":    "The Treaty Table",
 		"location": "cygnus",
 		"trigger":  { "type": "system_discovered", "value": "cygnus" },
+		"requires": ["percy_04_cygnus_signal"],
 		"desc":     "River is the appointed GEC mediator between two factions at war inside Cygnus Reach. What they're fighting over connects directly to what Percy found. [CROSSOVER: Percy]",
 		"crew_msg": "\"Two factions have been shooting at each other inside Cygnus Reach for seven months. I've been appointed GEC mediator. The ceasefire window is fourteen days. I need to be there. The complication — and there's always a complication — is that what they're fighting over is access to the same region of the nebula where Percy found that derelict. I don't think that's a coincidence. I'm going in there to negotiate a peace, but I may also be walking into the middle of whatever Percy has been chasing. I'm not sure I mind. I'd like to know what it is.\"",
 		"dialogue": [
@@ -1309,6 +1317,7 @@ const CREW_MISSIONS: Array = [
 		"title":    "River's Gambit",
 		"location": "frontier",
 		"trigger":  { "type": "system_discovered", "value": "frontier" },
+		"requires": ["percy_04_cygnus_signal"],
 		"desc":     "River reveals the unmarked ships were GEC shadow operations. Percy was never meant to find them. River must choose: the cover-up or the truth. [CROSSOVER: Percy, Mika]",
 		"crew_msg": "\"Captain. I owe you honesty and I'm going to give it to you even though it may cost me my commission. The unmarked ships Percy has been tracking — they were ours. GEC shadow operations. Unsanctioned. I was sent to manage the diplomatic fallout if they were ever found. I was not told Percy would be the one to find them. He wasn't supposed to be out that far. I've spent six months deciding what to do about this and I've made my choice: I'm going to Frontier Station to file a full disclosure report. I'll need your ship to get there. And Captain — don't tell Percy until we're in transit. Let me tell him myself.\"",
 		"dialogue": [
@@ -1366,6 +1375,7 @@ const CREW_MISSIONS: Array = [
 		"title":    "Extraction",
 		"location": "rigel_out",
 		"trigger":  { "type": "system_discovered", "value": "rigel_out" },
+		"requires": ["shadow_01_lost_freighter"],
 		"desc":     "Fluffy is stuck at Rigel Outpost after a job went wrong. Shadow heard their signal before they sent one. [CROSSOVER: Shadow]",
 		"crew_msg": "\"...I need a pickup. Rigel Outpost. Job went sideways — not my fault, client gave bad intel, not the first time. My ship is impounded pending an 'investigation' that will conveniently take six to eight weeks. I'm not asking for help. I'm asking for a commercial transport arrangement. Standard rate. Your crewman — Shadow, I think — apparently picked up my distress beacon before I activated it, which is either impressive or unsettling, I haven't decided. Tell him I said thanks. Don't make it weird.\"",
 		"dialogue": [
@@ -1392,6 +1402,7 @@ const CREW_MISSIONS: Array = [
 		"title":    "The Client",
 		"location": "scylla",
 		"trigger":  { "type": "system_discovered", "value": "scylla" },
+		"requires": ["percy_03_barnard_trace", "tumbler_01_the_toll"],
 		"desc":     "Fluffy reveals their Cygnus client was Tumbler — investigating the same network Percy is chasing, from the trade side. Nobody planned for these threads to cross. [CROSSOVER: Tumbler, Percy]",
 		"crew_msg": "\"I'm going to tell you something I don't normally tell clients. The job in Cygnus — the one that started all of this — I was hired by a merchant named Tumbler. Merchant Guild. He wanted eyes on some shipping irregularities that the Guild couldn't officially investigate. I didn't know what I was walking into. I didn't know your commander was already pulling at the same thread from the other end. I've been running jobs inside a situation I didn't understand and I don't like that. I like to know what I'm in. So — what are we in, Captain? Because I think you know.\"",
 		"dialogue": [
@@ -1418,6 +1429,7 @@ const CREW_MISSIONS: Array = [
 		"title":    "Picking a Side",
 		"location": "the_rim",
 		"trigger":  { "type": "jobs_completed", "value": 14 },
+		"requires": ["river_04_gambits_end"],
 		"desc":     "At The Rim, Fluffy has been offered final payment to deliver something to a third party. After everything, they're not sure they can take it. [CROSSOVER: Percy, River, Mika]",
 		"crew_msg": "\"I have an offer on the table. Final payment, clean exit, my impounder ship released. All I have to do is deliver one data package to a contact at the Rim before your commander gets there. I've taken harder jobs for less. The thing is — I've been on your ship for a while now. I've watched how you run things. Shadow trusts everyone and somehow isn't dead. Zester breaks everything and it mostly gets fixed. That counselor of yours looked at me last week like she already knew what I was going to say before I said it. I don't have loyalty to anyone. That's always been the deal. I'm at the Rim. I have a choice to make. I wanted you to know before I made it.\"",
 		"dialogue": [
